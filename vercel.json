@@ -3,6 +3,7 @@
   "outputDirectory": "frontend/build",
   "framework": null,
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api-not-configured.json" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

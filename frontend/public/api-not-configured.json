@@ -1,0 +1,1 @@
+{"error": "Backend not connected. Deploy the Python API server and set REACT_APP_API_URL."}

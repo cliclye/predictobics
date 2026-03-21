@@ -1,25 +1,41 @@
 const BASE = process.env.REACT_APP_API_URL || '/api';
 
 async function fetchJSON(path) {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`);
+  } catch (e) {
+    throw new Error('Cannot reach the API server. Is the backend running?');
   }
-  return res.json();
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('Backend not connected. Deploy the API server and set REACT_APP_API_URL.');
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return data;
 }
 
 async function postJSON(path, body) {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error('Cannot reach the API server. Is the backend running?');
   }
-  return res.json();
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('Backend not connected. Deploy the API server and set REACT_APP_API_URL.');
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return data;
 }
 
 export const api = {
