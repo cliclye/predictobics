@@ -6,8 +6,8 @@ import os
 class Settings(BaseSettings):
     tba_api_key: str = ""
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/statfrc"
-    database_url_sync: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/statfrc"
-    redis_url: str = "redis://localhost:6379/0"
+    database_url_sync: str = ""
+    redis_url: str = ""
     tba_base_url: str = "https://www.thebluealliance.com/api/v3"
 
     epa_time_decay: float = 0.92
@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     epa_blowout_ratio: float = 3.0
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    def get_async_db_url(self) -> str:
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        if "sslmode=" not in url and ("railway" in url or "supabase" in url or "neon" in url):
+            sep = "&" if "?" in url else "?"
+            url += f"{sep}ssl=require"
+        return url
 
 
 @lru_cache()

@@ -8,7 +8,8 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
-engine = create_async_engine(settings.database_url, echo=False, pool_size=20, max_overflow=10)
+db_url = settings.get_async_db_url()
+engine = create_async_engine(db_url, echo=False, pool_size=5, max_overflow=5)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
