@@ -1,0 +1,111 @@
+.hero-section {
+  text-align: center;
+  padding: 2rem 0 2.5rem;
+}
+
+.search-bar {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 500px;
+  margin: 1.5rem auto 0;
+}
+
+.search-input {
+  flex: 1;
+}
+
+.team-results {
+  max-width: 500px;
+  margin: 0.75rem auto 0;
+  padding: 0.5rem;
+}
+
+.team-result-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+
+.team-result-row:hover {
+  background: var(--bg-hover);
+}
+
+.team-number {
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 60px;
+}
+
+.team-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.team-loc {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.week-group {
+  margin-bottom: 1.5rem;
+}
+
+.week-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+}
+
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.event-card {
+  padding: 1rem 1.25rem;
+  color: var(--text-primary);
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.event-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.event-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.event-location {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.event-date {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
