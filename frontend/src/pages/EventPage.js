@@ -21,6 +21,94 @@ const DE_WINNERS_ROUNDS = ['Upper Round 1', 'Upper Round 2', 'Upper Bracket Fina
 const DE_LOSERS_ROUNDS = ['Lower Round 1', 'Lower Round 2', 'Lower Bracket Final'];
 const DE_FINALS = 'Finals';
 
+/** Real finalized scores only (same rule as TeamPage). */
+function matchHasScores(m) {
+  if (m.red_score == null || m.blue_score == null) return false;
+  if (m.red_score < 0 || m.blue_score < 0) return false;
+  return true;
+}
+
+function allianceNumForTeams(teamKeys, alliances) {
+  const s = new Set((teamKeys || []).filter(Boolean));
+  if (s.size === 0) return null;
+  for (const al of alliances) {
+    const ts = new Set((al.teams || []).filter(Boolean));
+    if (ts.size !== s.size) continue;
+    let ok = true;
+    for (const t of s) {
+      if (!ts.has(t)) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return al.number;
+  }
+  return null;
+}
+
+/**
+ * Best-of-3 style: walk games in time order between two alliances; reset when one reaches 2 wins.
+ * Returns display text, numeric winner if decided, and whether prediction matched.
+ */
+function actualSeriesForPair(idA, idB, alliances, playoffMatches) {
+  if (!alliances || !playoffMatches || playoffMatches.length === 0) {
+    return { text: null, winner: null, predCorrect: null };
+  }
+  const games = playoffMatches
+    .filter(matchHasScores)
+    .slice()
+    .sort((a, b) => {
+      const ta = a.time ? new Date(a.time).getTime() : 0;
+      const tb = b.time ? new Date(b.time).getTime() : 0;
+      return ta - tb;
+    });
+
+  let wa = 0;
+  let wb = 0;
+  let lastCompletedWinner = null;
+
+  for (const pm of games) {
+    const rNum = allianceNumForTeams(pm.red_teams, alliances);
+    const bNum = allianceNumForTeams(pm.blue_teams, alliances);
+    if (rNum == null || bNum == null) continue;
+    const pair = new Set([rNum, bNum]);
+    if (!pair.has(idA) || !pair.has(idB)) continue;
+
+    let winNum = null;
+    if (pm.winning_alliance === 'red') winNum = rNum;
+    else if (pm.winning_alliance === 'blue') winNum = bNum;
+    else if (pm.red_score > pm.blue_score) winNum = rNum;
+    else if (pm.blue_score > pm.red_score) winNum = bNum;
+    else continue;
+
+    if (winNum === idA) wa += 1;
+    else if (winNum === idB) wb += 1;
+
+    if (wa >= 2 || wb >= 2) {
+      lastCompletedWinner = wa >= 2 ? idA : idB;
+      wa = 0;
+      wb = 0;
+    }
+  }
+
+  if (wa > 0 || wb > 0) {
+    let text = `Series ${wa}–${wb}`;
+    if (wa !== wb) {
+      const leader = wa > wb ? idA : idB;
+      text = `A${leader} leads ${wa}–${wb}`;
+    }
+    return { text, winner: null, predCorrect: null };
+  }
+  if (lastCompletedWinner != null) {
+    return {
+      text: `A${lastCompletedWinner} won`,
+      winner: lastCompletedWinner,
+      predCorrect: null,
+    };
+  }
+  return { text: null, winner: null, predCorrect: null };
+}
+
 function allianceNumsForBracket(a) {
   if (!a) return '';
   if (Array.isArray(a.team_numbers) && a.team_numbers.length) return a.team_numbers.join(', ');
@@ -28,12 +116,13 @@ function allianceNumsForBracket(a) {
   return nums.join(', ');
 }
 
-function DoubleElimBracket({ bracket, alliances }) {
+function DoubleElimBracket({ bracket, alliances, playoffMatches }) {
   const rounds = bracket.some((m) => m.round_name === 'Upper Round 1')
     ? PLAYOFF_ROUND_ORDER
     : LEGACY_PLAYOFF_ROUNDS;
   const isDe = bracket.some((m) => m.round_name === 'Upper Round 1');
   const findA = (n) => (alliances ? alliances.find((x) => x.number === n) : null);
+  const showActual = playoffMatches !== undefined && alliances;
 
   const renderMatch = (m, i, round) => {
     const redA = findA(m.red_alliance);
@@ -41,8 +130,15 @@ function DoubleElimBracket({ bracket, alliances }) {
     const numsR = allianceNumsForBracket(redA);
     const numsB = allianceNumsForBracket(blueA);
     const extraClass = numsR || numsB ? ' playoff-bracket-match' : '';
+    const actual = showActual
+      ? actualSeriesForPair(m.red_alliance, m.blue_alliance, alliances, playoffMatches)
+      : { text: null, winner: null };
+    const predCorrect =
+      actual.winner != null ? actual.winner === m.winner : null;
+    const predRowClass =
+      predCorrect === true ? ' bracket-match--pred-ok' : predCorrect === false ? ' bracket-match--pred-miss' : '';
     return (
-      <div key={`${round}-${m.match_num}-${i}`} className={`bracket-match${extraClass}`}>
+      <div key={`${round}-${m.match_num}-${i}`} className={`bracket-match${extraClass}${predRowClass}`}>
         <div className="bracket-match-meta">Match {m.match_num}</div>
         <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''} bracket-team--red`}>
           <span className="bracket-seed">A{m.red_alliance}</span>
@@ -54,6 +150,22 @@ function DoubleElimBracket({ bracket, alliances }) {
           {numsB ? <span className="bracket-team-nums">{numsB}</span> : null}
           <span className="bracket-pct">{((1 - m.red_win_prob) * 100).toFixed(0)}%</span>
         </div>
+        {showActual && (
+          <div className="bracket-match-actual">
+            <span className="bracket-actual-label">Actual</span>
+            <span
+              className={
+                predCorrect === true
+                  ? 'bracket-actual-val ok'
+                  : predCorrect === false
+                    ? 'bracket-actual-val miss'
+                    : 'bracket-actual-val'
+              }
+            >
+              {actual.text || '—'}
+            </span>
+          </div>
+        )}
       </div>
     );
   };
@@ -118,6 +230,8 @@ function EventPage() {
   const [playoffPred, setPlayoffPred] = useState(null);
   const [playoffError, setPlayoffError] = useState(null);
   const [playoffLoading, setPlayoffLoading] = useState(false);
+  /** Non-qual matches for this event (playoff tab): polled every 2 min for actual results next to predictions. */
+  const [playoffMatches, setPlayoffMatches] = useState([]);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(null); }
@@ -161,6 +275,15 @@ function EventPage() {
     setPlayoffLoading(false);
   }, [eventKey]);
 
+  const loadPlayoffMatches = useCallback(async () => {
+    try {
+      const all = await api.getMatches(eventKey);
+      setPlayoffMatches((all || []).filter((m) => m.comp_level !== 'qm'));
+    } catch {
+      setPlayoffMatches([]);
+    }
+  }, [eventKey]);
+
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadPrediction(); }, [loadPrediction]);
 
@@ -169,6 +292,13 @@ function EventPage() {
       loadPlayoffPrediction();
     }
   }, [activeTab, playoffPred, playoffLoading, loadPlayoffPrediction]);
+
+  useEffect(() => {
+    if (activeTab !== 'playoffs') return undefined;
+    loadPlayoffMatches();
+    const id = setInterval(loadPlayoffMatches, 120000);
+    return () => clearInterval(id);
+  }, [activeTab, loadPlayoffMatches]);
 
   useEffect(() => {
     const interval = setInterval(() => { loadData(true); loadPrediction(); }, 120000);
@@ -311,7 +441,7 @@ function EventPage() {
       {activeTab === 'playoffs' && (
         <div className="predictions-section">
           {playoffLoading && <div className="loading">Loading playoff predictions...</div>}
-          {playoffPred && <PlayoffPredictions data={playoffPred} />}
+          {playoffPred && <PlayoffPredictions data={playoffPred} playoffMatches={playoffMatches} />}
           {playoffError && (
             <div className="card pred-error-card" style={{ textAlign: 'center', padding: '2rem' }}>
               <p style={{ color: '#f85149', marginBottom: '0.75rem', fontWeight: 600 }}>Playoff predictions unavailable</p>
@@ -454,7 +584,7 @@ function EventPredictions({ pred }) {
   );
 }
 
-function PlayoffPredictions({ data }) {
+function PlayoffPredictions({ data, playoffMatches }) {
   const winnerAlliance = data.alliances.find(a => a.number === data.predicted_winner);
 
   return (
@@ -465,6 +595,11 @@ function PlayoffPredictions({ data }) {
           <strong>actual alliance selections</strong> from The Blue Alliance, and best-of-3 win probability from
           offense EPA plus <strong>defense-adjusted EPA</strong> blended into each alliance&apos;s strength.
           The likely champion is the alliance that wins most often in Monte Carlo simulation of the bracket.
+        </p>
+        <p className="pred-info-line pred-info-line--sub">
+          <strong>Actual</strong> results use scores from this event&apos;s playoff matches in the database; they refresh
+          automatically every <strong>2 minutes</strong> while this tab is open (same cadence as the rest of the event page).
+          Best-of-3 series show live wins (e.g. &quot;A3 leads 1–0&quot;) and the winner when the series finishes.
         </p>
       </div>
 
@@ -489,7 +624,7 @@ function PlayoffPredictions({ data }) {
       {/* Playoff Bracket (double elimination) */}
       <div className="card">
         <div className="card-header">Playoff Bracket</div>
-        <DoubleElimBracket bracket={data.playoff_bracket} alliances={data.alliances} />
+        <DoubleElimBracket bracket={data.playoff_bracket} alliances={data.alliances} playoffMatches={playoffMatches} />
       </div>
 
       {/* Actual Alliances */}
