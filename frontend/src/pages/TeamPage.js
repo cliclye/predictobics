@@ -9,28 +9,42 @@ function matchHasScores(m) {
   return m.red_score != null && m.blue_score != null;
 }
 
-/** Keep last server win-% / preds for a match; after it finishes, API omits preds — we still show the frozen values. */
+function predSnapshot(m) {
+  if (m.red_win_prob == null || m.red_win_prob === undefined) return null;
+  return {
+    red_win_prob: m.red_win_prob,
+    red_predicted_score: m.red_predicted_score,
+    blue_predicted_score: m.blue_predicted_score,
+  };
+}
+
+/**
+ * Upcoming matches: always show latest API preds (EPA updates every ~2 min).
+ * Finished matches: freeze the first snapshot we have (before or right after the match) so %/preds
+ * don't drift when the tab stays open; still shows full preds on first page load.
+ */
 function applyStableMatchPredictions(matchesByEvent, stableRef) {
   const out = {};
   for (const [ek, list] of Object.entries(matchesByEvent)) {
     out[ek] = list.map((m) => {
       const played = matchHasScores(m);
-      if (!played && m.red_win_prob != null && m.red_win_prob !== undefined) {
-        stableRef.current[m.key] = {
-          red_win_prob: m.red_win_prob,
-          red_predicted_score: m.red_predicted_score,
-          blue_predicted_score: m.blue_predicted_score,
-        };
+      const snap = predSnapshot(m);
+      const prev = stableRef.current[m.key];
+
+      if (!played) {
+        if (snap) stableRef.current[m.key] = snap;
         return m;
       }
-      if (played && stableRef.current[m.key]) {
-        const s = stableRef.current[m.key];
+      if (prev) {
         return {
           ...m,
-          red_win_prob: s.red_win_prob,
-          red_predicted_score: s.red_predicted_score,
-          blue_predicted_score: s.blue_predicted_score,
+          red_win_prob: prev.red_win_prob,
+          red_predicted_score: prev.red_predicted_score,
+          blue_predicted_score: prev.blue_predicted_score,
         };
+      }
+      if (snap) {
+        stableRef.current[m.key] = snap;
       }
       return m;
     });
