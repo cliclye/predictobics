@@ -99,6 +99,45 @@ class MatchResponse(BaseModel):
     red_win_prob: Optional[float] = None
 
 
+class PredictedRankEntry(BaseModel):
+    rank: int
+    team_key: str
+    team_number: int
+    team_name: Optional[str] = None
+    epa_total: Optional[float] = None
+    predicted_rp: float = 0.0
+    predicted_record: str = ""
+    win_pct: float = 0.0
+
+
+class PredictedAlliance(BaseModel):
+    number: int
+    captain: str
+    pick1: str
+    pick2: str
+    captain_num: int = 0
+    pick1_num: int = 0
+    pick2_num: int = 0
+    alliance_epa: float = 0.0
+
+
+class PlayoffMatch(BaseModel):
+    round_name: str
+    match_num: int
+    red_alliance: int
+    blue_alliance: int
+    red_win_prob: float
+    winner: int
+
+
+class EventPredictionResponse(BaseModel):
+    predicted_rankings: list[PredictedRankEntry]
+    predicted_alliances: list[PredictedAlliance]
+    playoff_bracket: list[PlayoffMatch]
+    predicted_winner: int
+    predicted_winner_teams: list[str] = []
+
+
 class IngestionStatus(BaseModel):
     status: str
     message: str

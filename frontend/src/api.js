@@ -47,6 +47,7 @@ export const api = {
   getMatches: (eventKey) => fetchJSON(`/matches/${eventKey}`),
   predictMatch: (body) => postJSON('/match_prediction', body),
   simulate: (eventKey, n = 500) => fetchJSON(`/simulate/${eventKey}?n=${n}`),
+  getEventPrediction: (eventKey) => fetchJSON(`/event_prediction/${eventKey}`),
   ingest: (year) => postJSON(`/ingest/${year}`),
   compute: (eventKey) => postJSON(`/compute/${eventKey}`),
   train: (year) => postJSON(`/train/${year}`),

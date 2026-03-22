@@ -4,9 +4,41 @@
 }
 
 .event-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
+/* ── Tabs ── */
+.event-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.event-tab {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.12s;
+}
+
+.event-tab:hover {
+  color: var(--text-primary);
+}
+
+.event-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Rankings table ── */
 .sortable {
   cursor: pointer;
   user-select: none;
@@ -39,4 +71,223 @@
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── Predictions ── */
+.pred-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Winner card */
+.pred-winner-card {
+  border-color: rgba(63, 185, 80, 0.3);
+}
+
+.winner-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.winner-alliance-num {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #4ade80;
+  letter-spacing: -0.02em;
+}
+
+.winner-teams {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.winner-team-badge {
+  background: rgba(63, 185, 80, 0.15);
+  color: #4ade80;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+
+.winner-team-badge:hover {
+  background: rgba(63, 185, 80, 0.25);
+  color: #4ade80;
+}
+
+.winner-epa {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Bracket */
+.bracket-container {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 140px;
+}
+
+.round-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.bracket-match {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bracket-team {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.bracket-team + .bracket-team {
+  border-top: 1px solid var(--border);
+}
+
+.bracket-team.bracket-winner {
+  background: rgba(63, 185, 80, 0.1);
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.bracket-seed {
+  font-weight: 700;
+}
+
+.bracket-pct {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/* Alliances */
+.alliances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.alliance-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  transition: border-color 0.12s;
+}
+
+.alliance-card.alliance-winner {
+  border-color: rgba(63, 185, 80, 0.4);
+  background: rgba(63, 185, 80, 0.05);
+}
+
+.alliance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.alliance-num {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.alliance-epa-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.12);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.alliance-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.alliance-team {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 0.2rem 0;
+}
+
+.alliance-team:hover {
+  color: var(--accent);
+}
+
+.alliance-team.captain {
+  color: var(--text-primary);
+}
+
+.role-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Predicted rankings */
+.win-pct-cell {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.win-pct-cell.high {
+  color: #4ade80;
+}
+
+.win-pct-cell.mid {
+  color: var(--text-secondary);
+}
+
+.win-pct-cell.low {
+  color: #fca5a5;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .bracket-container {
+    flex-direction: column;
+  }
+
+  .alliances-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
