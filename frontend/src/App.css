@@ -21,7 +21,7 @@
 
 .nav-brand {
   font-size: 1.25rem;
-  font-weight: 800;
+  font-weight: 500;
   color: var(--text-primary);
   display: flex;
   align-items: center;

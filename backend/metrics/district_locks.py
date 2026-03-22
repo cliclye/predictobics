@@ -65,7 +65,8 @@ def _team_event_slots_used(rank_row: dict) -> tuple[int, list[dict]]:
     used = 0
     details = []
     for ep in evp:
-        pts = ep.get("district_points") or ep.get("points") or 0
+        # TBA uses "total" per event in event_points
+        pts = ep.get("total") or ep.get("district_points") or ep.get("points") or 0
         if pts > 0:
             used += 1
         details.append(ep)

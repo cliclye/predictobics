@@ -3,6 +3,10 @@
   padding: 2rem 0 2.5rem;
 }
 
+.hero-section .page-title {
+  font-weight: 500;
+}
+
 .search-bar {
   display: flex;
   gap: 0.5rem;

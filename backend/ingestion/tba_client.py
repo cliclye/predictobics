@@ -79,12 +79,17 @@ async def get_districts_for_year(year: int) -> list[dict]:
     return await tba_get(f"/districts/{year}") or []
 
 
-async def get_district_rankings(district_key: str, year: int) -> dict | None:
-    return await tba_get(f"/district/{district_key}/rankings/{year}")
+async def get_district_rankings(district_key: str, year: int) -> list[dict] | dict | None:
+    """
+    TBA v3: GET /district/{district_key}/rankings — year is encoded in district_key (e.g. 2026pnw).
+    Response is a JSON array of District_Ranking objects (not {rankings: [...]}).
+    """
+    return await tba_get(f"/district/{district_key}/rankings")
 
 
 async def get_district_events_list(district_key: str, year: int) -> list[dict]:
-    return await tba_get(f"/district/{district_key}/events/{year}") or []
+    """TBA v3: GET /district/{district_key}/events — no year suffix."""
+    return await tba_get(f"/district/{district_key}/events") or []
 
 
 async def get_event_awards(event_key: str) -> list[dict]:

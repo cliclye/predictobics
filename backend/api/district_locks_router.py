@@ -137,15 +137,18 @@ async def get_district_locks(
     dkey = _normalize_district_key(district_key, year)
 
     rank_data = await get_district_rankings(dkey, year)
-    if not rank_data:
+    if rank_data is None:
         raise HTTPException(
             404,
-            f"No district rankings for {dkey}. Check district key and year.",
+            f"TBA returned no data for district {dkey}. "
+            "Set TBA_API_KEY on the API server, and use a valid district key (e.g. 2026pnw).",
         )
 
-    rankings_raw = rank_data.get("rankings") or []
-    if not rankings_raw:
-        raise HTTPException(404, f"Empty rankings for {dkey} / {year}")
+    # TBA returns a list; older code paths may use {"rankings": [...]}
+    if isinstance(rank_data, list):
+        rankings_raw = rank_data
+    else:
+        rankings_raw = (rank_data.get("rankings") or []) if isinstance(rank_data, dict) else []
 
     spots = get_dcmp_spots_for_district(dkey, dcmp_spots)
 
