@@ -1,9 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import './TeamPage.css';
 
 const COMP_LABELS = { qm: 'Quals', ef: 'Eighths', qf: 'Quarters', sf: 'Semis', f: 'Finals' };
+
+function matchHasScores(m) {
+  return m.red_score != null && m.blue_score != null;
+}
+
+/** Keep last server win-% / preds for a match; after it finishes, API omits preds — we still show the frozen values. */
+function applyStableMatchPredictions(matchesByEvent, stableRef) {
+  const out = {};
+  for (const [ek, list] of Object.entries(matchesByEvent)) {
+    out[ek] = list.map((m) => {
+      const played = matchHasScores(m);
+      if (!played && m.red_win_prob != null && m.red_win_prob !== undefined) {
+        stableRef.current[m.key] = {
+          red_win_prob: m.red_win_prob,
+          red_predicted_score: m.red_predicted_score,
+          blue_predicted_score: m.blue_predicted_score,
+        };
+        return m;
+      }
+      if (played && stableRef.current[m.key]) {
+        const s = stableRef.current[m.key];
+        return {
+          ...m,
+          red_win_prob: s.red_win_prob,
+          red_predicted_score: s.red_predicted_score,
+          blue_predicted_score: s.blue_predicted_score,
+        };
+      }
+      return m;
+    });
+  }
+  return out;
+}
 
 function TeamPage() {
   const { teamKey } = useParams();
@@ -16,6 +49,7 @@ function TeamPage() {
   const [error, setError] = useState(null);
   const [algoOpen, setAlgoOpen] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const matchPredStableRef = useRef({});
 
   const years = [];
   for (let y = new Date().getFullYear(); y >= 2002; y--) years.push(y);
@@ -46,8 +80,10 @@ function TeamPage() {
       ]);
 
       const mMap = {};
-      matchResults.forEach(([ek, matches]) => { mMap[ek] = matches; });
-      setEventMatches(mMap);
+      matchResults.forEach(([ek, matches]) => {
+        mMap[ek] = matches;
+      });
+      setEventMatches(applyStableMatchPredictions(mMap, matchPredStableRef));
 
       const eMap = {};
       eventResults.forEach(([ek, ev]) => { if (ev) eMap[ek] = ev; });
@@ -57,6 +93,10 @@ function TeamPage() {
       if (!silent) setError(err.message);
     }
     if (!silent) setLoading(false);
+  }, [teamKey, year]);
+
+  useEffect(() => {
+    matchPredStableRef.current = {};
   }, [teamKey, year]);
 
   useEffect(() => { loadTeam(); }, [loadTeam]);
@@ -262,7 +302,7 @@ function EventSection({ metric, eventInfo, matches, teamKey, allEventMatches }) 
 function MatchRow({ match, teamKey }) {
   const [expanded, setExpanded] = useState(false);
   const isRed = match.red_teams.includes(teamKey);
-  const played = match.red_score !== null && match.blue_score !== null && match.red_score >= 0 && match.blue_score >= 0;
+  const played = matchHasScores(match);
   const label = `${COMP_LABELS[match.comp_level] || match.comp_level} ${match.match_number}`;
 
   let winProb = null;

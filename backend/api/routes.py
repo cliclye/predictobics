@@ -273,6 +273,11 @@ async def get_rankings(event_key: str, db: AsyncSession = Depends(get_db)):
 COMP_LEVEL_ORDER = {"qm": 0, "ef": 1, "qf": 2, "sf": 3, "f": 4}
 
 
+def _match_scores_recorded(m: Match) -> bool:
+    """If both scores exist, the match is finished — skip win-% / score prediction recompute."""
+    return m.red_score is not None and m.blue_score is not None
+
+
 @router.get("/matches/{event_key}", response_model=list[MatchResponse])
 async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
     matches_result = await db.execute(
@@ -315,7 +320,8 @@ async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
         red_win_prob = None
         red_pred = None
         blue_pred = None
-        if red_feat.total_epa or blue_feat.total_epa:
+        upcoming = not _match_scores_recorded(m)
+        if upcoming and (red_feat.total_epa or blue_feat.total_epa):
             pred = predict_match(red_feat, blue_feat)
             red_win_prob = pred.red_win_prob
             red_pred = round(pred.red_expected_score, 1)
