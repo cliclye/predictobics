@@ -634,8 +634,10 @@ async def evaluate_year_endpoint(
 
 
 # ──────────────────────────── Admin / Ingestion ────────────────────────────
-# Register /ingest/bulk before /ingest/{year} so "bulk" is not parsed as a year.
+# /ingest/bulk must be registered before /ingest/{year}. Also expose /ingest-bulk
+# as an alias so proxies or older route order cannot treat "bulk" as {year}.
 
+@router.post("/ingest-bulk", response_model=BulkIngestQueued)
 @router.post("/ingest/bulk", response_model=BulkIngestQueued)
 async def trigger_bulk_ingestion(
     body: BulkIngestRequest,

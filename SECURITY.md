@@ -24,7 +24,7 @@ Use environment variables and `.env` (listed in `.gitignore`). Use `.env.example
 
 ## Write / admin API
 
-When `ADMIN_API_SECRET` or `BULK_INGEST_SECRET` is set, these routes require the same value in `X-Admin-Secret` or `X-Bulk-Ingest-Secret`: `POST /api/ingest/{year}`, `POST /api/ingest/bulk`, `POST /api/compute/{event_key}`, `POST /api/train/{year}`.
+When `ADMIN_API_SECRET` or `BULK_INGEST_SECRET` is set, these routes require the same value in `X-Admin-Secret` or `X-Bulk-Ingest-Secret`: `POST /api/ingest/{year}`, `POST /api/ingest/bulk` (alias: `POST /api/ingest-bulk`), `POST /api/compute/{event_key}`, `POST /api/train/{year}`.
 
 Do **not** put that secret in `REACT_APP_*` on a public site (it would ship in the browser bundle). The hosted UI hides ingest actions when the API is locked and no client secret is configured. For trusted private builds only, `REACT_APP_ADMIN_API_SECRET` can match the server secret so the ingest buttons keep working.
 

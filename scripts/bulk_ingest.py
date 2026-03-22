@@ -2,7 +2,7 @@
 """
 Foreground bulk ingestion: pull many seasons of events + matches + EPA into PostgreSQL.
 
-Uses the same logic as POST /api/ingest/bulk but runs in your terminal (survives
+Uses the same logic as POST /api/ingest/bulk (or /api/ingest-bulk) but runs in your terminal (survives
 server restarts better for long jobs; use Railway `railway run` or SSH).
 
 Requires: DATABASE_URL, TBA_API_KEY in environment (or .env in project root).
