@@ -99,6 +99,20 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 See [SECURITY.md](SECURITY.md).
 
+## Deploying the frontend on Vercel
+
+This repo is a **monorepo** (Python API + React UI). Vercel should build **only the React app**.
+
+1. Import the GitHub repo into Vercel.
+2. Open **Project → Settings → General**.
+3. Set **Root Directory** to `frontend` and save.
+4. Framework Preset: **Create React App** (or “Other” with build `npm run build`, output `build`).
+5. Set **`REACT_APP_API_URL`** in **Environment Variables** to your public API base (e.g. `https://your-railway-app.up.railway.app/api`) so the browser calls Railway, not Vercel.
+
+`frontend/vercel.json` provides SPA rewrites. The root `vercel.json` is a fallback if you build from the monorepo root with the root `package.json` `build` script.
+
+If Vercel tries to install **Python** (`requirements.txt`) or **CPython 3.14**, Root Directory is probably not set to `frontend` — fix step 3.
+
 ## Legal
 
 This project is not affiliated with FIRST®, The Blue Alliance, or Statbotics. *FIRST®* is a registered trademark of FIRST. Match data trademarks are used for informational purposes.

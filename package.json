@@ -1,0 +1,13 @@
+{
+  "name": "predictobics",
+  "private": true,
+  "description": "Monorepo root — Vercel build runs the React app in /frontend",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "vercel-build": "cd frontend && npm install && npm run build"
+  }
+}

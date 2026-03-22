@@ -1,0 +1,8 @@
+# Used by `vercel deploy` (CLI) to shrink uploads. Git-based deployments still clone the
+# full repo — for those, set Vercel Project → Settings → Root Directory = `frontend`
+# so only the React app is built (see README).
+requirements.txt
+runtime.txt
+backend/
+scripts/
+**/*.pkl
