@@ -14,10 +14,22 @@ function statusLabel(s) {
 }
 
 function rowClass(st) {
+  if (st === 'impact') return 'lock-row impact-row';
   if (st === 'clinched') return 'lock-row clinched';
   if (st === 'in_range') return 'lock-row in-range';
   if (st === 'bubble') return 'lock-row bubble';
   return 'lock-row out';
+}
+
+function LockPctCell({ t }) {
+  if (t.lock_display === 'Impact') {
+    return <strong className="impact-lock-label">Impact</strong>;
+  }
+  if (t.lock_probability == null && t.lock_display !== 'Impact') {
+    return <span className="lock-dash">—</span>;
+  }
+  const p = t.lock_probability;
+  return <strong>{(p * 100).toFixed(1)}%</strong>;
 }
 
 export default function LocksPage() {
@@ -172,18 +184,23 @@ export default function LocksPage() {
           <div className="card">
             <div className="card-header">Rankings &amp; DCMP lock %</div>
             <div className="locks-legend">
-              <span><span className="lg clinched" /> Clinched / near lock</span>
+              <span><span className="lg clinched" /> ≥~97% sim.</span>
               <span><span className="lg in-range" /> In range</span>
               <span><span className="lg bubble" /> Bubble</span>
               <span><span className="lg out" /> Out</span>
+              <span><span className="lg impact" /> Impact Award</span>
             </div>
             <div className="table-wrapper">
-              <table className="locks-table">
+              <table className="locks-table locks-table-wide">
                 <thead>
                   <tr>
                     <th>Rank</th>
                     <th>Team</th>
-                    <th>District pts</th>
+                    <th>Event 1</th>
+                    <th>Event 2</th>
+                    <th>Age / adj.</th>
+                    <th>Rookie</th>
+                    <th>Total</th>
                     <th>DCMP lock %</th>
                   </tr>
                 </thead>
@@ -196,9 +213,13 @@ export default function LocksPage() {
                           <span className="team-num">{t.team_number}</span>
                         </Link>
                       </td>
-                      <td>{t.point_total.toFixed(1)}</td>
-                      <td>
-                        <strong>{(t.lock_probability * 100).toFixed(1)}%</strong>
+                      <td>{t.event_1_pts ?? 0}</td>
+                      <td>{t.event_2_pts ?? 0}</td>
+                      <td>{t.age_adjustment ?? 0}</td>
+                      <td>{t.rookie_bonus ?? 0}</td>
+                      <td><strong>{t.point_total}</strong></td>
+                      <td className="lock-pct-cell">
+                        <LockPctCell t={t} />
                       </td>
                     </tr>
                   ))}

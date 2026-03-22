@@ -116,6 +116,31 @@
   background: rgba(218, 54, 51, 0.08);
 }
 
+.locks-table .lock-row.impact-row {
+  background: rgba(88, 166, 255, 0.12);
+}
+
+.locks-table-wide {
+  min-width: 900px;
+}
+
+.lock-pct-cell {
+  white-space: nowrap;
+}
+
+.impact-lock-label {
+  color: #58a6ff;
+  font-size: 0.95rem;
+}
+
+.lock-dash {
+  color: var(--text-muted);
+}
+
+.locks-legend .lg.impact {
+  background: #58a6ff;
+}
+
 .locks-impact-list .impact-tags {
   display: flex;
   flex-wrap: wrap;

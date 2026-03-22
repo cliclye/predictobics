@@ -60,12 +60,13 @@ def _team_event_slots_used(rank_row: dict) -> tuple[int, list[dict]]:
     """How many district events this team has earned points at (0–2 typical)."""
     evp = rank_row.get("event_points")
     if not evp:
-        # sort_orders sometimes encodes breakdown; point_total only
+        # No breakdown: if they already have district points, assume at least one event played
+        if _row_points(rank_row) > 0:
+            return (1, [])
         return (0, [])
     used = 0
     details = []
     for ep in evp:
-        # TBA uses "total" per event in event_points
         pts = ep.get("total") or ep.get("district_points") or ep.get("points") or 0
         if pts > 0:
             used += 1
@@ -73,15 +74,30 @@ def _team_event_slots_used(rank_row: dict) -> tuple[int, list[dict]]:
     return used, details
 
 
+def _future_event_draw(rng: np.random.Generator) -> float:
+    """
+    Heavy-tailed draw for one future district event (similar spread to real FRC variance).
+    Mixture: most teams cluster mid-table but upsets and blowouts happen.
+    """
+    # Mixture: "normal" event vs "high" event vs "rough" event
+    u = rng.random()
+    if u < 0.25:
+        return max(0.0, float(rng.normal(24, 7)))
+    if u < 0.65:
+        return max(0.0, float(rng.normal(16, 8)))
+    return max(0.0, float(rng.normal(8, 9)))
+
+
 def estimate_lock_probabilities(
     rankings: list[dict],
     dcmp_spots: int,
-    n_simulations: int = 2500,
+    n_simulations: int = 8000,
     seed: int = 42,
 ) -> list[dict]:
     """
-    Monte Carlo: add random future district points for teams with < 2 events,
-    then count how often each team finishes in top `dcmp_spots` by point_total.
+    Monte Carlo: simulate remaining district qual points with correlated uncertainty
+    (district-wide shocks) and heavy-tailed per-event draws — top teams are not all ~100%
+    while meaningful points remain on the calendar.
     """
     if not rankings or dcmp_spots < 1:
         return []
@@ -89,30 +105,29 @@ def estimate_lock_probabilities(
     rng = np.random.default_rng(seed)
     n_teams = len(rankings)
 
-    # Parse base points and remaining event slots
     base = np.zeros(n_teams, dtype=float)
     slots_left = np.zeros(n_teams, dtype=int)
 
     for i, row in enumerate(rankings):
         base[i] = _row_points(row)
         used, _ = _team_event_slots_used(row)
-        # Up to 2 district events for district points
         slots_left[i] = max(0, 2 - min(used, 2))
-
-    # Typical district point draw per event (wide prior)
-    def random_event_points():
-        # District qual points often 10–22 range; use skewed distribution
-        return max(0.0, float(rng.normal(16, 5)))
 
     probs = np.zeros(n_teams)
 
     for _ in range(n_simulations):
         sim = base.copy()
+        global_shift = float(rng.normal(0.0, 5.5))
+        season_scale = float(rng.lognormal(0.0, 0.18))
+
         for i in range(n_teams):
+            if slots_left[i] <= 0:
+                continue
+            sim[i] += global_shift
             for _ in range(int(slots_left[i])):
-                sim[i] += random_event_points()
-        # Rank by points (desc); break ties randomly
-        jitter = rng.random(n_teams) * 1e-6
+                sim[i] += _future_event_draw(rng) * season_scale
+
+        jitter = rng.random(n_teams) * 1e-5
         order = np.argsort(-(sim + jitter))
         inv_rank = np.empty_like(order)
         inv_rank[order] = np.arange(n_teams)
@@ -124,23 +139,24 @@ def estimate_lock_probabilities(
     out = []
     for i, row in enumerate(rankings):
         tk = row.get("team_key", "")
+        p = float(np.clip(probs[i], 0.0, 1.0))
         out.append(
             {
                 "team_key": tk,
-                "lock_probability": float(np.clip(probs[i], 0.0, 1.0)),
-                "status": _status_bucket(float(probs[i])),
+                "lock_probability": p,
+                "status": _status_bucket(p),
             }
         )
     return out
 
 
 def _status_bucket(p: float) -> str:
-    """clinched | in_range | bubble | out."""
-    if p >= 0.995:
+    """Color hints from simulated probability (not 'clinched' at 100% unless essentially 1)."""
+    if p >= 0.97:
         return "clinched"
-    if p >= 0.55:
+    if p >= 0.45:
         return "in_range"
-    if p >= 0.12:
+    if p >= 0.08:
         return "bubble"
     return "out"
 

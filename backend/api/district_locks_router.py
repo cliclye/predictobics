@@ -89,6 +89,27 @@ def _is_impact_award(award: dict) -> bool:
     return False
 
 
+def _point_breakdown(row: dict) -> dict[str, int]:
+    """Event 1 / Event 2 district points, age/adjustments, rookie, total (TBA fields)."""
+    evp = [e for e in (row.get("event_points") or []) if not e.get("district_cmp")]
+    evp.sort(key=lambda e: e.get("event_key", "") or "")
+    e1 = int(evp[0].get("total", 0)) if len(evp) > 0 else 0
+    e2 = int(evp[1].get("total", 0)) if len(evp) > 1 else 0
+    age = int(row.get("adjustments") or 0)
+    rookie = int(row.get("rookie_bonus") or 0)
+    pt = row.get("point_total")
+    if pt is None and row.get("sort_orders"):
+        pt = row["sort_orders"][0]
+    total = int(pt or 0)
+    return {
+        "event_1_pts": e1,
+        "event_2_pts": e2,
+        "age_adjustment": age,
+        "rookie_bonus": rookie,
+        "point_total": total,
+    }
+
+
 async def _count_impact_teams_for_event(event_key: str) -> list[str]:
     awards = await get_event_awards(event_key)
     teams: list[str] = []
@@ -129,7 +150,7 @@ async def get_district_locks(
         None,
         description="Override DCMP field size for this district (from FIRST)",
     ),
-    n_simulations: int = Query(2500, ge=500, le=15000),
+    n_simulations: int = Query(8000, ge=2000, le=25000),
 ):
     """
     District rankings, per-event status, Impact winners, estimated DCMP lock %.
@@ -152,36 +173,7 @@ async def get_district_locks(
 
     spots = get_dcmp_spots_for_district(dkey, dcmp_spots)
 
-    lock_rows = estimate_lock_probabilities(
-        rankings_raw,
-        spots,
-        n_simulations=n_simulations,
-    )
-    merged = merge_locks_into_rankings(rankings_raw, lock_rows)
-
-    teams_out: list[dict[str, Any]] = []
-    for i, row in enumerate(merged):
-        tk = row.get("team_key", "")
-        pt = row.get("point_total")
-        if pt is None and row.get("sort_orders"):
-            so = row["sort_orders"]
-            pt = float(so[0]) if so else 0.0
-        else:
-            pt = float(pt or 0)
-        teams_out.append(
-            {
-                "rank": row.get("rank") or i + 1,
-                "team_key": tk,
-                "team_number": _team_num(tk),
-                "point_total": pt,
-                "rookie_bonus": float(row.get("rookie_bonus") or 0),
-                "event_points": row.get("event_points") or [],
-                "lock_probability": row.get("lock_probability", 0.0),
-                "status": row.get("status", "out"),
-            }
-        )
-
-    # District events
+    # District events + Impact winners (collect before building team rows)
     devents = await get_district_events_list(dkey, year)
     events_out: list[dict[str, Any]] = []
     impact_teams: set[str] = set()
@@ -212,6 +204,40 @@ async def get_district_locks(
             }
         )
 
+    lock_rows = estimate_lock_probabilities(
+        rankings_raw,
+        spots,
+        n_simulations=n_simulations,
+    )
+    merged = merge_locks_into_rankings(rankings_raw, lock_rows)
+
+    teams_out: list[dict[str, Any]] = []
+    for i, row in enumerate(merged):
+        tk = row.get("team_key", "")
+        br = _point_breakdown(row)
+        lp = row.get("lock_probability", 0.0)
+        st = row.get("status", "out")
+        is_impact = tk in impact_teams
+        entry: dict[str, Any] = {
+            "rank": row.get("rank") or i + 1,
+            "team_key": tk,
+            "team_number": _team_num(tk),
+            "event_1_pts": br["event_1_pts"],
+            "event_2_pts": br["event_2_pts"],
+            "age_adjustment": br["age_adjustment"],
+            "rookie_bonus": br["rookie_bonus"],
+            "point_total": br["point_total"],
+            "event_points": row.get("event_points") or [],
+            "status": "impact" if is_impact else st,
+        }
+        if is_impact:
+            entry["lock_display"] = "Impact"
+            entry["lock_probability"] = None
+        else:
+            entry["lock_display"] = None
+            entry["lock_probability"] = float(lp) if lp is not None else None
+        teams_out.append(entry)
+
     return {
         "district_key": dkey,
         "year": year,
@@ -222,7 +248,8 @@ async def get_district_locks(
         "events": events_out,
         "teams": teams_out,
         "disclaimer": (
-            "DCMP field sizes and points are approximate; lock %% is a Monte Carlo model. "
-            "Verify qualification with official FIRST sources."
+            "DCMP field sizes are approximate. Lock %% is a Monte Carlo simulation of remaining "
+            "district points (not a guarantee). Impact Award teams show Impact instead of %%. "
+            "Verify with official FIRST / district sources."
         ),
     }
