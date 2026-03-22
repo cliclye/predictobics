@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from backend.database import async_session
 from backend.models.orm import Match, MatchAlliance, TeamEventMetrics, Team
 from backend.metrics.epa import MatchRecord, compute_epa
+from backend.metrics.predictor import set_noise_variance
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ async def compute_event_metrics(event_key: str):
                 auto = match.red_auto_score if color == "red" else match.blue_auto_score
                 teleop = match.red_teleop_score if color == "red" else match.blue_teleop_score
                 endgame = match.red_endgame_score if color == "red" else match.blue_endgame_score
+                foul_recv = (match.red_foul_points if color == "red" else match.blue_foul_points) or 0
 
                 records.append(MatchRecord(
                     match_key=match.key,
@@ -72,12 +74,18 @@ async def compute_event_metrics(event_key: str):
                     score_teleop=teleop or 0,
                     score_endgame=endgame or 0,
                     match_index=idx,
+                    foul_points_received=foul_recv,
                 ))
 
         if not records:
             return
 
-        metrics = compute_epa(records)
+        epa_result = compute_epa(records)
+        metrics = epa_result.metrics
+
+        # Feed calibrated noise variance into the predictor
+        if epa_result.global_residual_variance > 0:
+            set_noise_variance(epa_result.global_residual_variance)
 
         # Only insert metrics for teams that exist in the teams table
         all_team_keys = list(metrics.keys())

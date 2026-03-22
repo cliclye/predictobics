@@ -396,8 +396,6 @@ async def predict_event(
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    from scipy import stats as sp_stats
-
     sim_results = await simulate_event(event_key, n_simulations=n)
     if not sim_results:
         raise HTTPException(
@@ -518,32 +516,17 @@ async def predict_event(
         ))
 
     # Playoff bracket: QF -> SF -> F
-    def _alliance_epa_total(alliance_num):
-        if alliance_num - 1 < len(alliances):
-            return sum(_epa(tk) for tk in alliances[alliance_num - 1])
-        return 0
-
-    def _alliance_var(alliance_num):
-        if alliance_num - 1 < len(alliances):
-            return sum(
-                (team_data.get(tk, (None, None))[0].score_variance or 0)
-                if team_data.get(tk, (None, None))[0] else 0
-                for tk in alliances[alliance_num - 1]
-            )
-        return 0
+    # Build a metrics dict keyed by team_key for alliance feature construction
+    _metrics_by_tk = {tk: m for tk, (m, t) in team_data.items() if m is not None}
 
     def _predict_bo3(a1, a2):
-        epa1 = _alliance_epa_total(a1)
-        epa2 = _alliance_epa_total(a2)
-        var1 = _alliance_var(a1)
-        var2 = _alliance_var(a2)
-        sigma = np.sqrt(var1 + var2 + 160.0)
-        if sigma < 1e-6:
-            sigma = 12.0
-        z = (epa1 - epa2) / sigma
-        single_win = float(sp_stats.norm.cdf(z))
+        teams1 = alliances[a1 - 1] if a1 - 1 < len(alliances) else []
+        teams2 = alliances[a2 - 1] if a2 - 1 < len(alliances) else []
+        feat1 = build_alliance_features_from_metrics(teams1, _metrics_by_tk)
+        feat2 = build_alliance_features_from_metrics(teams2, _metrics_by_tk)
+        single_pred = predict_match(feat1, feat2)
+        p = single_pred.red_win_prob
         # Best of 3: P(win series) = p^2 + 2*p^2*(1-p)
-        p = single_win
         series_p = p * p + 2 * p * p * (1 - p)
         return float(np.clip(series_p, 0.01, 0.99))
 

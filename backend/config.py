@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # Blend sum of per-team defense-adjusted EPA into the Gaussian mean (0 = off).
     # Applies to match win % / score expectations and Monte Carlo event simulation.
     prediction_defense_blend: float = 0.18
+    # Default noise variance for Gaussian model; auto-calibrated from EPA residuals when available
+    prediction_noise_variance: float = 92.0
+    # Continuous reliability variance scaling: variance *= 1 + (1-reliability) * this
+    prediction_reliability_variance_scale: float = 1.0
+    # Match-count confidence: variance *= 1 + k / matches_played (fewer matches = wider uncertainty)
+    prediction_match_count_k: float = 3.0
 
     # Optional: require this value in X-Bulk-Ingest-Secret header for POST /ingest/bulk
     bulk_ingest_secret: str = ""

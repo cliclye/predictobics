@@ -33,7 +33,21 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH = Path(__file__).parent / "trained_model.pkl"
 
-DEFAULT_NOISE_VARIANCE = 92.0
+# Calibrated noise variance; updated from EPA residuals via set_noise_variance()
+_calibrated_noise_variance: Optional[float] = None
+
+
+def get_noise_variance() -> float:
+    """Return calibrated noise variance if available, else config default."""
+    if _calibrated_noise_variance is not None:
+        return _calibrated_noise_variance
+    return get_settings().prediction_noise_variance
+
+
+def set_noise_variance(val: float):
+    """Called by compute.py after EPA to feed data-driven noise into the predictor."""
+    global _calibrated_noise_variance
+    _calibrated_noise_variance = max(val, 10.0)  # floor to prevent degenerate values
 
 
 @dataclass
@@ -61,11 +75,14 @@ class AllianceFeatures:
     min_epa: float = 0.0
     # Sum of per-team defense-adjusted EPA (from compute_epa); used for mean blend
     defense_adjusted_epa: float = 0.0
+    avg_matches_played: float = 0.0
+    synergy_bonus: float = 0.0
 
 
 def build_alliance_features_from_metrics(
     team_keys: list[str],
     metrics: dict,
+    synergy: Optional[dict] = None,
 ) -> AllianceFeatures:
     """
     Build alliance features from a team_key -> TeamEventMetrics map (same math as DB path).
@@ -82,6 +99,7 @@ def build_alliance_features_from_metrics(
     variances = []
     effective_terms = []
     defense_terms = []
+    match_counts = []
 
     for tk in team_keys:
         m = metrics.get(tk)
@@ -100,6 +118,7 @@ def build_alliance_features_from_metrics(
             effective_terms.append(e * c * r)
             da = getattr(m, "epa_defense_adjusted", None)
             defense_terms.append(float(da) if da is not None else e)
+            match_counts.append(getattr(m, "matches_played", 0) or 0)
         else:
             epas.append(0)
             autos.append(0)
@@ -111,11 +130,21 @@ def build_alliance_features_from_metrics(
             variances.append(100.0)
             effective_terms.append(0.0)
             defense_terms.append(0.0)
+            match_counts.append(0)
 
     raw_sum = sum(epas)
     avg_c = float(np.mean(consistencies))
     avg_r = float(np.mean(reliabilities))
     effective_epa = float(sum(effective_terms))
+
+    # Synergy: sum pair bonuses for teams on this alliance
+    syn_bonus = 0.0
+    if synergy:
+        tks = [tk for tk in team_keys if tk in metrics]
+        for i in range(len(tks)):
+            for j in range(i + 1, len(tks)):
+                pair = tuple(sorted([tks[i], tks[j]]))
+                syn_bonus += synergy.get(pair, 0.0)
 
     return AllianceFeatures(
         total_epa=raw_sum,
@@ -131,6 +160,8 @@ def build_alliance_features_from_metrics(
         max_epa=max(epas) if epas else 0,
         min_epa=min(epas) if epas else 0,
         defense_adjusted_epa=float(sum(defense_terms)),
+        avg_matches_played=float(np.mean(match_counts)) if match_counts else 0.0,
+        synergy_bonus=syn_bonus,
     )
 
 
@@ -147,8 +178,10 @@ def _blended_match_mean(alliance: AllianceFeatures) -> float:
     md = alliance.defense_adjusted_epa
     w = float(get_settings().prediction_defense_blend)
     if md > 0 and w > 0:
-        return float((1.0 - w) * mu_eff + w * md)
-    return float(mu_eff)
+        base = float((1.0 - w) * mu_eff + w * md)
+    else:
+        base = float(mu_eff)
+    return base + alliance.synergy_bonus
 
 
 def predict_match(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
@@ -180,13 +213,21 @@ def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> Predic
     mu_r = _blended_match_mean(red)
     mu_b = _blended_match_mean(blue)
 
-    sigma2_r = red.total_variance + DEFAULT_NOISE_VARIANCE
-    sigma2_b = blue.total_variance + DEFAULT_NOISE_VARIANCE
+    settings = get_settings()
+    sigma2_r = red.total_variance + get_noise_variance()
+    sigma2_b = blue.total_variance + get_noise_variance()
 
-    reliability_factor = (red.avg_reliability + blue.avg_reliability) / 2.0
-    if reliability_factor < 0.5:
-        sigma2_r *= 1.5
-        sigma2_b *= 1.5
+    # Continuous per-alliance reliability scaling (replaces binary 0.5 threshold)
+    rel_scale = settings.prediction_reliability_variance_scale
+    sigma2_r *= 1.0 + (1.0 - red.avg_reliability) * rel_scale
+    sigma2_b *= 1.0 + (1.0 - blue.avg_reliability) * rel_scale
+
+    # Match-count confidence: fewer matches = higher epistemic uncertainty
+    k = settings.prediction_match_count_k
+    if red.avg_matches_played > 0:
+        sigma2_r *= 1.0 + k / red.avg_matches_played
+    if blue.avg_matches_played > 0:
+        sigma2_b *= 1.0 + k / blue.avg_matches_played
 
     combined_sigma = np.sqrt(sigma2_r + sigma2_b)
     if combined_sigma < 1e-6:
@@ -215,6 +256,12 @@ def _predict_ml(model, red: AllianceFeatures, blue: AllianceFeatures) -> Predict
     X = np.array([features])
 
     try:
+        # Graceful fallback if model was trained on a different feature count
+        expected = getattr(model, "n_features_in_", None)
+        if expected is not None and expected != len(features):
+            logger.warning("Model expects %d features, got %d — falling back to analytical",
+                           expected, len(features))
+            return _predict_analytical(red, blue)
         prob = model.predict_proba(X)[0]
         red_win_prob = float(prob[1])
     except Exception:
@@ -257,10 +304,20 @@ def _build_feature_vector(red: AllianceFeatures, blue: AllianceFeatures) -> list
         red.avg_consistency - blue.avg_consistency,
         red.avg_reliability - blue.avg_reliability,
         # Derived
-        np.sqrt(red.total_variance + DEFAULT_NOISE_VARIANCE),
-        np.sqrt(blue.total_variance + DEFAULT_NOISE_VARIANCE),
+        np.sqrt(red.total_variance + get_noise_variance()),
+        np.sqrt(blue.total_variance + get_noise_variance()),
         red.max_epa - red.min_epa,
         blue.max_epa - blue.min_epa,
+        # Defense-adjusted EPA (raw + gap)
+        red.defense_adjusted_epa, blue.defense_adjusted_epa,
+        red.defense_adjusted_epa - blue.defense_adjusted_epa,
+        # Match experience
+        red.avg_matches_played, blue.avg_matches_played,
+        # EPA component ratios (game-strategy signal)
+        red.auto_epa / max(red.total_epa, 1.0),
+        blue.auto_epa / max(blue.total_epa, 1.0),
+        # SoS gap
+        red.avg_sos - blue.avg_sos,
     ]
 
 
@@ -397,6 +454,7 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
     reliabilities = []
     soss = []
     variances = []
+    match_counts = []
 
     for tk in team_keys:
         m = metrics.get((tk, event_key))
@@ -410,6 +468,7 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
         reliabilities.append(m.reliability or 1)
         soss.append(m.strength_of_schedule or 0)
         variances.append(m.score_variance or 0)
+        match_counts.append(getattr(m, "matches_played", 0) or 0)
 
     raw_sum = sum(epas)
     avg_c = float(np.mean(consistencies))
@@ -442,6 +501,7 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
         max_epa=max(epas),
         min_epa=min(epas),
         defense_adjusted_epa=float(sum(def_terms)) if def_terms else 0.0,
+        avg_matches_played=float(np.mean(match_counts)) if match_counts else 0.0,
     )
 
 
@@ -560,8 +620,8 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
 
             r_var = red_feat.total_variance
             b_var = blue_feat.total_variance
-            sigma_r = float(np.sqrt(max(r_var, 0) + DEFAULT_NOISE_VARIANCE))
-            sigma_b = float(np.sqrt(max(b_var, 0) + DEFAULT_NOISE_VARIANCE))
+            sigma_r = float(np.sqrt(max(r_var, 0) + get_noise_variance()))
+            sigma_b = float(np.sqrt(max(b_var, 0) + get_noise_variance()))
             if sigma_r < 1e-6:
                 sigma_r = 12.0
             if sigma_b < 1e-6:
@@ -573,9 +633,15 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
             if red_score > blue_score:
                 for tk in red_teams:
                     rp[tk] = rp.get(tk, 0) + 2.0
-            else:
+            elif blue_score > red_score:
                 for tk in blue_teams:
                     rp[tk] = rp.get(tk, 0) + 2.0
+            else:
+                # Tie: both alliances receive 1 RP
+                for tk in red_teams:
+                    rp[tk] = rp.get(tk, 0) + 1.0
+                for tk in blue_teams:
+                    rp[tk] = rp.get(tk, 0) + 1.0
 
         for tk in all_teams:
             sim_results[tk].append(rp.get(tk, 0))

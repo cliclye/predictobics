@@ -82,6 +82,7 @@ def _records_for_prefix(
             auto = m.red_auto_score if color == "red" else m.blue_auto_score
             teleop = m.red_teleop_score if color == "red" else m.blue_teleop_score
             endgame = m.red_endgame_score if color == "red" else m.blue_endgame_score
+            foul_recv = (m.red_foul_points if color == "red" else m.blue_foul_points) or 0
             records.append(
                 MatchRecord(
                     match_key=m.key,
@@ -91,6 +92,7 @@ def _records_for_prefix(
                     score_teleop=teleop or 0,
                     score_endgame=endgame or 0,
                     match_index=idx,
+                    foul_points_received=foul_recv,
                 )
             )
     return records
@@ -120,7 +122,7 @@ async def evaluate_event_walk_forward(event_key: str) -> dict[str, Any]:
         if len(prior) < 4:
             continue
 
-        epa_res = compute_epa(prior)
+        epa_res = compute_epa(prior).metrics
         if len(epa_res) < 4:
             continue
 

@@ -35,6 +35,7 @@ class MatchRecord:
     score_teleop: float
     score_endgame: float
     match_index: int
+    foul_points_received: float = 0.0  # foul points awarded TO this alliance; subtracted for cleaner EPA
 
 
 @dataclass
@@ -52,9 +53,21 @@ class TeamMetrics:
     score_variance: float = 0.0
 
 
-def compute_epa(records: list[MatchRecord]) -> dict[str, TeamMetrics]:
+@dataclass
+class EPAResult:
+    """Bundle of EPA outputs: per-team metrics + calibration data for the predictor."""
+    metrics: dict  # str -> TeamMetrics
+    global_residual_variance: float = 92.0  # residual variance from WLS; feeds noise model
+    synergy_scores: dict = None  # tuple[str,str] -> float; pair-level residual bonuses
+
+    def __post_init__(self):
+        if self.synergy_scores is None:
+            self.synergy_scores = {}
+
+
+def compute_epa(records: list[MatchRecord]) -> EPAResult:
     if not records:
-        return {}
+        return EPAResult(metrics={})
 
     all_teams = sorted({tk for r in records for tk in r.team_keys})
     team_idx = {tk: i for i, tk in enumerate(all_teams)}
@@ -62,7 +75,7 @@ def compute_epa(records: list[MatchRecord]) -> dict[str, TeamMetrics]:
     n_records = len(records)
 
     if n_records < 2:
-        return {tk: TeamMetrics(team_key=tk, matches_played=1) for tk in all_teams}
+        return EPAResult(metrics={tk: TeamMetrics(team_key=tk, matches_played=1) for tk in all_teams})
 
     # ── Build system matrix ──
     A = np.zeros((n_records, n_teams))
@@ -75,7 +88,8 @@ def compute_epa(records: list[MatchRecord]) -> dict[str, TeamMetrics]:
         for tk in rec.team_keys:
             if tk in team_idx:
                 A[i, team_idx[tk]] = 1.0
-        b_total[i] = rec.score_total
+        # Subtract foul points received for cleaner EPA (fouls inflate score artificially)
+        b_total[i] = rec.score_total - rec.foul_points_received
         b_auto[i] = rec.score_auto
         b_teleop[i] = rec.score_teleop
         b_endgame[i] = rec.score_endgame
@@ -129,8 +143,11 @@ def compute_epa(records: list[MatchRecord]) -> dict[str, TeamMetrics]:
         epa_endgame = _solve_wls(A, b_endgame, adj_w, n_teams, mean_endgame)
         weights = adj_w
 
-    # ── Per-team residuals, variance, consistency ──
+    # ── Global residual variance (feeds noise model in predictor) ──
     predicted = A @ epa_total
+    global_residual_var = float(np.var(b_total - predicted))
+
+    # ── Per-team residuals, variance, consistency ──
     team_resids: dict[str, list[float]] = {tk: [] for tk in all_teams}
     team_match_count: dict[str, int] = {tk: 0 for tk in all_teams}
 
@@ -224,7 +241,11 @@ def compute_epa(records: list[MatchRecord]) -> dict[str, TeamMetrics]:
             score_variance=variance,
         )
 
-    return results
+    return EPAResult(
+        metrics=results,
+        global_residual_variance=global_residual_var,
+        synergy_scores=synergy_scores,
+    )
 
 
 def _solve_wls(A: np.ndarray, b: np.ndarray, w: np.ndarray,
