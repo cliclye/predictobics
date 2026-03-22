@@ -20,7 +20,7 @@ from backend.api.schemas import (
     MatchPredictionResponse, SimulationTeamResult, IngestionStatus,
     MatchResponse, EventPredictionResponse, PredictedRankEntry,
     PredictedAlliance, PlayoffMatch, BulkIngestRequest, BulkIngestQueued,
-    ServerInfoResponse,
+    ServerInfoResponse, PlayoffPredictionAlliance, PlayoffPredictionResponse,
 )
 from backend.metrics.predictor import (
     predict_match,
@@ -592,6 +592,155 @@ async def predict_event(
         alliance_skip_first_pick=apply_skip,
         alliance_selection_note=alliance_note,
         ranking_method_note=ranking_note,
+    )
+
+
+# ──────────────────────── Playoff Predictions (actual alliances) ────────────────────────
+
+@router.get("/playoff_prediction/{event_key}", response_model=PlayoffPredictionResponse)
+async def playoff_prediction(
+    event_key: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Predict playoff bracket using the *actual* alliance selections (from TBA),
+    not the predicted/greedy alliances.  Falls back to DB playoff matches if the
+    TBA alliances endpoint is unavailable.
+    """
+    from backend.ingestion.tba_client import get_event_alliances
+
+    # ── 1. Get actual alliances from TBA ──
+    raw_alliances = await get_event_alliances(event_key)
+
+    alliances: list[list[str]] = []  # index 0 = alliance 1, etc.
+    if raw_alliances:
+        for entry in raw_alliances:
+            picks = entry.get("picks") or []
+            alliances.append(picks)
+    else:
+        # Fallback: reconstruct alliances from playoff match data in DB
+        playoff_matches = await db.execute(
+            select(Match)
+            .where(Match.event_key == event_key)
+            .where(Match.comp_level.in_(["qf", "sf", "ef", "f"]))
+        )
+        pm_list = playoff_matches.scalars().all()
+        if not pm_list:
+            raise HTTPException(
+                404,
+                f"No alliance selection data available for {event_key}. "
+                "The event may not have reached playoffs yet.",
+            )
+        pm_keys = [m.key for m in pm_list]
+        al_result = await db.execute(
+            select(MatchAlliance).where(MatchAlliance.match_key.in_(pm_keys))
+        )
+        al_map: dict[str, dict[str, list[str]]] = {}
+        for a in al_result.scalars().all():
+            al_map.setdefault(a.match_key, {}).setdefault(a.alliance, []).append(a.team_key)
+
+        seen_sets: list[frozenset] = []
+        alliance_lists: list[list[str]] = []
+        for mk, sides in al_map.items():
+            for color in ("red", "blue"):
+                teams = sides.get(color, [])
+                ts = frozenset(teams)
+                if ts and ts not in seen_sets:
+                    seen_sets.append(ts)
+                    alliance_lists.append(teams)
+        alliances = alliance_lists
+
+    if len(alliances) < 2:
+        raise HTTPException(
+            404,
+            f"Fewer than 2 alliances found for {event_key}. "
+            "Alliance selection may not have happened yet.",
+        )
+
+    # Pad to 8 if needed (some events have fewer)
+    while len(alliances) < 8:
+        alliances.append([])
+
+    # ── 2. Load team metrics ──
+    metrics_result = await db.execute(
+        select(TeamEventMetrics).where(TeamEventMetrics.event_key == event_key)
+    )
+    metrics_map = {m.team_key: m for m in metrics_result.scalars().all()}
+
+    # Team number lookup
+    all_tks = [tk for a in alliances for tk in a]
+    team_result = await db.execute(select(Team).where(Team.key.in_(all_tks))) if all_tks else None
+    team_num_map: dict[str, int] = {}
+    if team_result:
+        for t in team_result.scalars().all():
+            team_num_map[t.key] = t.team_number
+
+    def _epa(tk):
+        m = metrics_map.get(tk)
+        return (m.epa_total or 0) if m else 0
+
+    # ── 3. Build response alliances ──
+    resp_alliances = []
+    for i, teams in enumerate(alliances):
+        resp_alliances.append(PlayoffPredictionAlliance(
+            number=i + 1,
+            teams=teams,
+            team_numbers=[team_num_map.get(tk, int(tk.replace("frc", ""))) for tk in teams],
+            alliance_epa=round(sum(_epa(tk) for tk in teams), 1),
+        ))
+
+    # ── 4. Predict playoff bracket: QF → SF → Final ──
+    def _predict_bo3(a1_idx, a2_idx):
+        t1 = alliances[a1_idx] if a1_idx < len(alliances) else []
+        t2 = alliances[a2_idx] if a2_idx < len(alliances) else []
+        f1 = build_alliance_features_from_metrics(t1, metrics_map)
+        f2 = build_alliance_features_from_metrics(t2, metrics_map)
+        pr = predict_match(f1, f2)
+        p = pr.red_win_prob
+        series_p = p * p + 2 * p * p * (1 - p)
+        return float(np.clip(series_p, 0.01, 0.99))
+
+    bracket = []
+    qf_matchups = [(0, 7), (3, 4), (1, 6), (2, 5)]  # 0-indexed: A1vA8, A4vA5, A2vA7, A3vA6
+    qf_winners = []
+    for i, (a, b) in enumerate(qf_matchups):
+        p = _predict_bo3(a, b)
+        winner_idx = a if p >= 0.5 else b
+        qf_winners.append(winner_idx)
+        bracket.append(PlayoffMatch(
+            round_name="Quarterfinal", match_num=i + 1,
+            red_alliance=a + 1, blue_alliance=b + 1,
+            red_win_prob=round(p, 3), winner=winner_idx + 1,
+        ))
+
+    sf_matchups = [(qf_winners[0], qf_winners[1]), (qf_winners[2], qf_winners[3])]
+    sf_winners = []
+    for i, (a, b) in enumerate(sf_matchups):
+        p = _predict_bo3(a, b)
+        winner_idx = a if p >= 0.5 else b
+        sf_winners.append(winner_idx)
+        bracket.append(PlayoffMatch(
+            round_name="Semifinal", match_num=i + 1,
+            red_alliance=a + 1, blue_alliance=b + 1,
+            red_win_prob=round(p, 3), winner=winner_idx + 1,
+        ))
+
+    final_a, final_b = sf_winners[0], sf_winners[1]
+    final_p = _predict_bo3(final_a, final_b)
+    final_winner_idx = final_a if final_p >= 0.5 else final_b
+    bracket.append(PlayoffMatch(
+        round_name="Final", match_num=1,
+        red_alliance=final_a + 1, blue_alliance=final_b + 1,
+        red_win_prob=round(final_p, 3), winner=final_winner_idx + 1,
+    ))
+
+    winner_teams = alliances[final_winner_idx] if final_winner_idx < len(alliances) else []
+
+    return PlayoffPredictionResponse(
+        alliances=resp_alliances,
+        playoff_bracket=bracket,
+        predicted_winner=final_winner_idx + 1,
+        predicted_winner_teams=winner_teams,
     )
 
 

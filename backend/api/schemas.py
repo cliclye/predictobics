@@ -144,6 +144,20 @@ class EventPredictionResponse(BaseModel):
     ranking_method_note: str = ""
 
 
+class PlayoffPredictionAlliance(BaseModel):
+    number: int
+    teams: list[str] = []
+    team_numbers: list[int] = []
+    alliance_epa: float = 0.0
+
+
+class PlayoffPredictionResponse(BaseModel):
+    alliances: list[PlayoffPredictionAlliance]
+    playoff_bracket: list[PlayoffMatch]
+    predicted_winner: int
+    predicted_winner_teams: list[str] = []
+
+
 class IngestionStatus(BaseModel):
     status: str
     message: str

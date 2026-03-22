@@ -94,3 +94,8 @@ async def get_district_events_list(district_key: str, year: int) -> list[dict]:
 
 async def get_event_awards(event_key: str) -> list[dict]:
     return await tba_get(f"/event/{event_key}/awards") or []
+
+
+async def get_event_alliances(event_key: str) -> list[dict]:
+    """TBA v3: GET /event/{event_key}/alliances — returns list of alliance dicts."""
+    return await tba_get(f"/event/{event_key}/alliances") or []

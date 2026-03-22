@@ -88,6 +88,7 @@ export const api = {
   predictMatch: (body) => postJSON('/match_prediction', body),
   simulate: (eventKey, n = 500) => fetchJSON(`/simulate/${eventKey}?n=${n}`),
   getEventPrediction: (eventKey) => fetchJSON(`/event_prediction/${eventKey}`),
+  getPlayoffPrediction: (eventKey) => fetchJSON(`/playoff_prediction/${eventKey}`),
   ingest: (year) => postJSON(`/ingest/${year}`, undefined, { admin: true }),
   compute: (eventKey) => postJSON(`/compute/${eventKey}`, undefined, { admin: true }),
   train: (year) => postJSON(`/train/${year}`, undefined, { admin: true }),

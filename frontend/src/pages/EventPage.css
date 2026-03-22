@@ -207,6 +207,24 @@
   opacity: 0.7;
 }
 
+/* Playoff bracket with team numbers */
+.playoff-bracket-match .bracket-team {
+  gap: 0.5rem;
+}
+
+.bracket-team-nums {
+  flex: 1;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-winner .bracket-team-nums {
+  color: rgba(74, 222, 128, 0.7);
+}
+
 /* Alliances */
 .alliances-grid {
   display: grid;

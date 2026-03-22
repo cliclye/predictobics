@@ -16,6 +16,9 @@ function EventPage() {
   const [sortField, setSortField] = useState('epa_total');
   const [sortDir, setSortDir] = useState('desc');
   const [activeTab, setActiveTab] = useState('rankings');
+  const [playoffPred, setPlayoffPred] = useState(null);
+  const [playoffError, setPlayoffError] = useState(null);
+  const [playoffLoading, setPlayoffLoading] = useState(false);
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(null); }
@@ -46,8 +49,27 @@ function EventPage() {
     setPredLoading(false);
   }, [eventKey]);
 
+  const loadPlayoffPrediction = useCallback(async () => {
+    setPlayoffLoading(true);
+    setPlayoffError(null);
+    try {
+      const data = await api.getPlayoffPrediction(eventKey);
+      setPlayoffPred(data);
+    } catch (err) {
+      setPlayoffPred(null);
+      setPlayoffError(err.message || 'Could not load playoff predictions.');
+    }
+    setPlayoffLoading(false);
+  }, [eventKey]);
+
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadPrediction(); }, [loadPrediction]);
+
+  useEffect(() => {
+    if (activeTab === 'playoffs' && !playoffPred && !playoffLoading) {
+      loadPlayoffPrediction();
+    }
+  }, [activeTab, playoffPred, playoffLoading, loadPlayoffPrediction]);
 
   useEffect(() => {
     const interval = setInterval(() => { loadData(true); loadPrediction(); }, 120000);
@@ -90,6 +112,7 @@ function EventPage() {
       <div className="event-tabs">
         <button className={`event-tab ${activeTab === 'rankings' ? 'active' : ''}`} onClick={() => setActiveTab('rankings')}>EPA Rankings</button>
         <button className={`event-tab ${activeTab === 'predictions' ? 'active' : ''}`} onClick={() => setActiveTab('predictions')}>Event Predictions</button>
+        <button className={`event-tab ${activeTab === 'playoffs' ? 'active' : ''}`} onClick={() => setActiveTab('playoffs')}>Playoff Predictions</button>
       </div>
 
       {activeTab === 'rankings' && (
@@ -180,6 +203,27 @@ function EventPage() {
               <p style={{ color: 'var(--text-muted)' }}>No prediction data available.</p>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>
                 Ingest the event year from the home page, then run compute so EPA exists for this event.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'playoffs' && (
+        <div className="predictions-section">
+          {playoffLoading && <div className="loading">Loading playoff predictions...</div>}
+          {playoffPred && <PlayoffPredictions data={playoffPred} />}
+          {playoffError && (
+            <div className="card pred-error-card" style={{ textAlign: 'center', padding: '2rem' }}>
+              <p style={{ color: '#f85149', marginBottom: '0.75rem', fontWeight: 600 }}>Playoff predictions unavailable</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: 520, margin: '0 auto' }}>{playoffError}</p>
+            </div>
+          )}
+          {!playoffLoading && !playoffPred && !playoffError && (
+            <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+              <p style={{ color: 'var(--text-muted)' }}>No playoff data available.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>
+                Alliance selection may not have happened yet for this event.
               </p>
             </div>
           )}
@@ -326,6 +370,97 @@ function EventPredictions({ pred }) {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlayoffPredictions({ data }) {
+  const winnerAlliance = data.alliances.find(a => a.number === data.predicted_winner);
+
+  return (
+    <div className="pred-container">
+      <div className="card pred-info-banner">
+        <p className="pred-info-line">
+          Playoff predictions based on <strong>actual alliance selections</strong> from The Blue Alliance, combined with EPA-based match win probability.
+        </p>
+      </div>
+
+      {/* Predicted Winner */}
+      <div className="card pred-winner-card">
+        <div className="card-header">Predicted Playoff Winner</div>
+        <div className="winner-display">
+          <span className="winner-alliance-num">Alliance {data.predicted_winner}</span>
+          <div className="winner-teams">
+            {data.predicted_winner_teams.map(tk => (
+              <Link key={tk} to={`/team/${tk}`} className="winner-team-badge">
+                {tk.replace('frc', '')}
+              </Link>
+            ))}
+          </div>
+          {winnerAlliance && (
+            <span className="winner-epa">Combined EPA: {winnerAlliance.alliance_epa}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Playoff Bracket */}
+      <div className="card">
+        <div className="card-header">Playoff Bracket</div>
+        <div className="bracket-container">
+          {['Quarterfinal', 'Semifinal', 'Final'].map(round => {
+            const matches = data.playoff_bracket.filter(m => m.round_name === round);
+            return (
+              <div key={round} className="bracket-round">
+                <h4 className="round-label">{round}s</h4>
+                {matches.map((m, i) => {
+                  const redAlliance = data.alliances.find(a => a.number === m.red_alliance);
+                  const blueAlliance = data.alliances.find(a => a.number === m.blue_alliance);
+                  return (
+                    <div key={i} className="bracket-match playoff-bracket-match">
+                      <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''}`}>
+                        <span className="bracket-seed">A{m.red_alliance}</span>
+                        <span className="bracket-team-nums">
+                          {redAlliance && redAlliance.team_numbers.map(n => n).join(', ')}
+                        </span>
+                        <span className="bracket-pct">{(m.red_win_prob * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className={`bracket-team ${m.winner === m.blue_alliance ? 'bracket-winner' : ''}`}>
+                        <span className="bracket-seed">A{m.blue_alliance}</span>
+                        <span className="bracket-team-nums">
+                          {blueAlliance && blueAlliance.team_numbers.map(n => n).join(', ')}
+                        </span>
+                        <span className="bracket-pct">{((1 - m.red_win_prob) * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Actual Alliances */}
+      <div className="card">
+        <div className="card-header">Alliances</div>
+        <div className="alliances-grid">
+          {data.alliances.filter(a => a.teams.length > 0).map(a => (
+            <div key={a.number} className={`alliance-card ${a.number === data.predicted_winner ? 'alliance-winner' : ''}`}>
+              <div className="alliance-header">
+                <span className="alliance-num">Alliance {a.number}</span>
+                <span className="alliance-epa-badge">{a.alliance_epa}</span>
+              </div>
+              <div className="alliance-teams">
+                {a.teams.map((tk, idx) => (
+                  <Link key={tk} to={`/team/${tk}`} className={`alliance-team ${idx === 0 ? 'captain' : ''}`}>
+                    <span className="role-tag">{idx === 0 ? 'C' : `P${idx}`}</span> {a.team_numbers[idx] || tk.replace('frc', '')}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
