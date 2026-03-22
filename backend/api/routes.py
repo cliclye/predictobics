@@ -597,6 +597,27 @@ async def predict_event(
     )
 
 
+# ──────────────────────────── Evaluation (backtests vs history) ────────────────────────────
+
+@router.get("/evaluation/year/{year}")
+async def evaluate_year_endpoint(
+    year: int,
+    max_events: int = Query(40, ge=5, le=200),
+    walk_forward: bool = Query(
+        True,
+        description="If true, recomputes EPA before each match (honest; slower). "
+        "If false, only leaky baseline is omitted from walk-forward block.",
+    ),
+):
+    """
+    Compare match predictions to actual QM results and EPA order vs TBA ranks.
+    Requires ingested data + TBA key for ranking correlation.
+    """
+    from backend.metrics.evaluation import evaluate_year
+
+    return await evaluate_year(year, max_events=max_events, walk_forward=walk_forward)
+
+
 # ──────────────────────────── Admin / Ingestion ────────────────────────────
 
 @router.post("/ingest/{year}", response_model=IngestionStatus)

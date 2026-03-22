@@ -27,11 +27,13 @@ from dataclasses import dataclass
 from typing import Optional
 from scipy import stats
 
+from backend.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 MODEL_PATH = Path(__file__).parent / "trained_model.pkl"
 
-DEFAULT_NOISE_VARIANCE = 80.0
+DEFAULT_NOISE_VARIANCE = 92.0
 
 
 @dataclass
@@ -59,11 +61,36 @@ class AllianceFeatures:
     min_epa: float = 0.0
 
 
+def _calibrate_win_prob(p: float) -> float:
+    """Shrink extreme probabilities toward 0.5 (better Brier on held-out matches)."""
+    s = get_settings().prediction_prob_shrink
+    p = 0.5 + (p - 0.5) * s
+    return float(np.clip(p, 0.02, 0.98))
+
+
 def predict_match(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
+    ana = _predict_analytical(red, blue)
     model = _load_model()
     if model is not None:
-        return _predict_ml(model, red, blue)
-    return _predict_analytical(red, blue)
+        ml = _predict_ml(model, red, blue)
+        w = get_settings().prediction_ml_blend_weight
+        p_red = w * ml.red_win_prob + (1.0 - w) * ana.red_win_prob
+        p_red = _calibrate_win_prob(p_red)
+        return PredictionResult(
+            red_win_prob=p_red,
+            blue_win_prob=1.0 - p_red,
+            red_expected_score=ana.red_expected_score,
+            blue_expected_score=ana.blue_expected_score,
+            model_used="blend_ml_analytical",
+        )
+    p_red = _calibrate_win_prob(ana.red_win_prob)
+    return PredictionResult(
+        red_win_prob=p_red,
+        blue_win_prob=1.0 - p_red,
+        red_expected_score=ana.red_expected_score,
+        blue_expected_score=ana.blue_expected_score,
+        model_used=ana.model_used,
+    )
 
 
 def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
@@ -83,6 +110,7 @@ def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> Predic
         combined_sigma = 12.0
 
     z = (mu_r - mu_b) / combined_sigma
+    z /= max(get_settings().prediction_z_temperature, 1e-6)
     red_win_prob = float(stats.norm.cdf(z))
     red_win_prob = np.clip(red_win_prob, 0.01, 0.99)
 
@@ -249,9 +277,9 @@ def _train_sklearn(X, y):
     try:
         from xgboost import XGBClassifier
         model = XGBClassifier(
-            n_estimators=300, max_depth=5, learning_rate=0.03,
-            subsample=0.8, colsample_bytree=0.8, min_child_weight=5,
-            reg_alpha=0.1, reg_lambda=1.0, eval_metric="logloss",
+            n_estimators=280, max_depth=4, learning_rate=0.035,
+            subsample=0.85, colsample_bytree=0.85, min_child_weight=8,
+            reg_alpha=0.15, reg_lambda=1.2, eval_metric="logloss",
         )
         model.fit(X, y)
         logger.info("Trained XGBoost model")
@@ -261,8 +289,8 @@ def _train_sklearn(X, y):
 
     from sklearn.ensemble import GradientBoostingClassifier
     model = GradientBoostingClassifier(
-        n_estimators=300, max_depth=5, learning_rate=0.05,
-        subsample=0.8, min_samples_leaf=10, max_features=0.8,
+        n_estimators=280, max_depth=4, learning_rate=0.05,
+        subsample=0.8, min_samples_leaf=14, max_features=0.75,
     )
     model.fit(X, y)
     logger.info("Trained sklearn GradientBoosting model")

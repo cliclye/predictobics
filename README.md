@@ -62,6 +62,7 @@ backend/
     epa.py           — EPA computation engine (WLS + outlier rejection)
     compute.py       — DB-to-metrics orchestrator
     predictor.py     — Match prediction + Monte Carlo simulation
+    evaluation.py    — Walk-forward backtests vs TBA (Brier, Spearman rank)
   api/
     routes.py        — FastAPI endpoints
     schemas.py       — Pydantic response models
@@ -86,6 +87,21 @@ frontend/
 | POST | `/api/ingest/{year}` | Trigger data ingestion |
 | POST | `/api/compute/{event_key}` | Compute metrics for event |
 | POST | `/api/train/{year}` | Train ML prediction model |
+| GET | `/api/evaluation/year/{year}?max_events=40` | Backtest: match Brier/log-loss + EPA vs TBA rank correlation |
+
+### Backtesting (historical accuracy)
+
+After ingesting data, run a **walk-forward** evaluation (EPA recomputed before each match — no future leakage):
+
+```bash
+PYTHONPATH=. python scripts/evaluate_backtest.py --year 2024 --max-events 30
+```
+
+Or via API: `GET /api/evaluation/year/2024`. Tune calibration in `.env` / `config.py`:
+
+- `PREDICTION_PROB_SHRINK` — pull win probabilities toward 50% (better Brier)
+- `PREDICTION_Z_TEMPERATURE` — values above 1.0 soften upset probabilities
+- `PREDICTION_ML_BLEND_WEIGHT` — ML vs analytical blend (0 = analytical only)
 
 ## Metrics
 

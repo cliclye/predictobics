@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     epa_dead_robot_threshold: float = 5.0
     epa_blowout_ratio: float = 3.0
 
+    # Match win-probability calibration (tuned vs walk-forward backtests; env override)
+    prediction_prob_shrink: float = 0.88
+    prediction_z_temperature: float = 1.06
+    prediction_ml_blend_weight: float = 0.28
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     def get_async_db_url(self) -> str:
