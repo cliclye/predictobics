@@ -5,8 +5,11 @@ import './TeamPage.css';
 
 const COMP_LABELS = { qm: 'Quals', ef: 'Eighths', qf: 'Quarters', sf: 'Semis', f: 'Finals' };
 
+/** Real finalized scores only. TBA uses -1 as a placeholder — not a tie and not "played". */
 function matchHasScores(m) {
-  return m.red_score != null && m.blue_score != null;
+  if (m.red_score == null || m.blue_score == null) return false;
+  if (m.red_score < 0 || m.blue_score < 0) return false;
+  return true;
 }
 
 function predSnapshot(m) {
@@ -257,7 +260,11 @@ function EventSection({ metric, eventInfo, matches, teamKey, allEventMatches }) 
     const isRed = m.red_teams.includes(teamKey);
     return (isRed && m.winning_alliance === 'blue') || (!isRed && m.winning_alliance === 'red');
   }).length;
-  const ties = qualMatches.filter(m => m.winning_alliance === '' || (m.red_score !== null && m.red_score === m.blue_score && m.winning_alliance === null)).length;
+  const ties = qualMatches.filter(m => {
+    if (m.winning_alliance === 'red' || m.winning_alliance === 'blue') return false;
+    if (m.winning_alliance === '') return true;
+    return matchHasScores(m) && m.red_score === m.blue_score;
+  }).length;
 
   return (
     <div className="event-section">

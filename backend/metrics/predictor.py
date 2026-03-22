@@ -464,7 +464,8 @@ def _epa_only_ranking_simulation(
             if not m:
                 sim_results[tk].append(0.0)
                 continue
-            mu = (m.epa_total or 0) * (m.consistency or 0.5) * (m.reliability or 1.0)
+            solo = build_alliance_features_from_metrics([tk], {tk: m})
+            mu = _blended_match_mean(solo)
             sigma = float(np.sqrt(max(m.score_variance or 0, 0) + 25.0))
             if sigma < 1e-3:
                 sigma = 12.0
@@ -551,26 +552,23 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
             red_teams = sides.get("red", [])
             blue_teams = sides.get("blue", [])
 
-            def _team_eff(tk):
-                met = metrics.get(tk)
-                if not met:
-                    return 0.0, 0.0
-                epa = met.epa_total or 0
-                c = met.consistency or 0.5
-                r = met.reliability or 1.0
-                return epa * c * r, met.score_variance or 0
+            red_feat = build_alliance_features_from_metrics(red_teams, metrics)
+            blue_feat = build_alliance_features_from_metrics(blue_teams, metrics)
 
-            r_eff, r_var = zip(*[_team_eff(tk) for tk in red_teams]) if red_teams else ([], [])
-            b_eff, b_var = zip(*[_team_eff(tk) for tk in blue_teams]) if blue_teams else ([], [])
+            mu_r = _blended_match_mean(red_feat)
+            mu_b = _blended_match_mean(blue_feat)
 
-            mu_r = sum(r_eff)
-            mu_b = sum(b_eff)
-            sigma = np.sqrt(sum(r_var) + sum(b_var) + 2 * DEFAULT_NOISE_VARIANCE)
-            if sigma < 1e-6:
-                sigma = 12.0
+            r_var = red_feat.total_variance
+            b_var = blue_feat.total_variance
+            sigma_r = float(np.sqrt(max(r_var, 0) + DEFAULT_NOISE_VARIANCE))
+            sigma_b = float(np.sqrt(max(b_var, 0) + DEFAULT_NOISE_VARIANCE))
+            if sigma_r < 1e-6:
+                sigma_r = 12.0
+            if sigma_b < 1e-6:
+                sigma_b = 12.0
 
-            red_score = np.random.normal(mu_r, np.sqrt(sum(r_var) + DEFAULT_NOISE_VARIANCE))
-            blue_score = np.random.normal(mu_b, np.sqrt(sum(b_var) + DEFAULT_NOISE_VARIANCE))
+            red_score = float(np.random.normal(mu_r, sigma_r))
+            blue_score = float(np.random.normal(mu_b, sigma_b))
 
             if red_score > blue_score:
                 for tk in red_teams:
