@@ -634,18 +634,7 @@ async def evaluate_year_endpoint(
 
 
 # ──────────────────────────── Admin / Ingestion ────────────────────────────
-
-@router.post("/ingest/{year}", response_model=IngestionStatus)
-async def trigger_ingestion(
-    year: int,
-    background_tasks: BackgroundTasks,
-    x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret"),
-    x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
-):
-    _assert_write_authorized(x_admin_secret, x_bulk_ingest_secret)
-    background_tasks.add_task(_run_ingestion, year)
-    return IngestionStatus(status="started", message=f"Ingestion for {year} started in background")
-
+# Register /ingest/bulk before /ingest/{year} so "bulk" is not parsed as a year.
 
 @router.post("/ingest/bulk", response_model=BulkIngestQueued)
 async def trigger_bulk_ingestion(
@@ -682,6 +671,18 @@ async def trigger_bulk_ingestion(
         start_year=body.start_year,
         end_year=body.end_year,
     )
+
+
+@router.post("/ingest/{year}", response_model=IngestionStatus)
+async def trigger_ingestion(
+    year: int,
+    background_tasks: BackgroundTasks,
+    x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret"),
+    x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
+):
+    _assert_write_authorized(x_admin_secret, x_bulk_ingest_secret)
+    background_tasks.add_task(_run_ingestion, year)
+    return IngestionStatus(status="started", message=f"Ingestion for {year} started in background")
 
 
 @router.post("/compute/{event_key}", response_model=IngestionStatus)

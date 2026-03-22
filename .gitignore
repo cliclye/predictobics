@@ -11,6 +11,7 @@ htmlcov/
 dist/
 build/
 *.pkl
+SECURITY.md
 
 # Node
 node_modules/
