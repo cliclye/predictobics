@@ -95,6 +95,24 @@
   vertical-align: middle;
 }
 
+.locks-legend .lg.top50 {
+  background: #2ea043;
+  opacity: 0.95;
+}
+
+.locks-table .locks-row-top50 {
+  background: rgba(46, 160, 67, 0.22);
+}
+
+.locks-table .locks-row-top50.impact-row {
+  background: linear-gradient(
+    90deg,
+    rgba(88, 166, 255, 0.18) 0%,
+    rgba(46, 160, 67, 0.2) 40%,
+    rgba(46, 160, 67, 0.22) 100%
+  );
+}
+
 .locks-legend .lg.clinched { background: #238636; }
 .locks-legend .lg.in-range { background: #3fb950; opacity: 0.85; }
 .locks-legend .lg.bubble { background: #d29922; }

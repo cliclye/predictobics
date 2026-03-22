@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import './LocksPage.css';
@@ -13,7 +13,38 @@ function statusLabel(s) {
   return map[s] || s;
 }
 
-function rowClass(st) {
+const TOP_GREEN_ROWS = 50;
+
+function isImpactTeam(t) {
+  return t.status === 'impact' || t.lock_display === 'Impact';
+}
+
+/** Impact teams first (by total points), then everyone else by DCMP lock % (best → worst). */
+function sortLocksTeams(teams) {
+  if (!teams?.length) return [];
+  const impact = teams.filter(isImpactTeam);
+  const rest = teams.filter((t) => !isImpactTeam(t));
+  impact.sort((a, b) => (b.point_total ?? 0) - (a.point_total ?? 0));
+  rest.sort((a, b) => {
+    const pa = a.lock_probability;
+    const pb = b.lock_probability;
+    if (pa == null && pb == null) return (b.point_total ?? 0) - (a.point_total ?? 0);
+    if (pa == null) return 1;
+    if (pb == null) return -1;
+    if (pb !== pa) return pb - pa;
+    return (b.point_total ?? 0) - (a.point_total ?? 0);
+  });
+  return [...impact, ...rest];
+}
+
+/** Row styling: first TOP_GREEN_ROWS are green; below that use status bands. Impact keeps accent in top band. */
+function rowClass(st, index) {
+  const parts = ['lock-row'];
+  if (index < TOP_GREEN_ROWS) {
+    parts.push('locks-row-top50');
+    if (st === 'impact') parts.push('impact-row');
+    return parts.join(' ');
+  }
   if (st === 'impact') return 'lock-row impact-row';
   if (st === 'clinched') return 'lock-row clinched';
   if (st === 'in_range') return 'lock-row in-range';
@@ -85,6 +116,8 @@ export default function LocksPage() {
   useEffect(() => {
     if (districtKey) loadLocks();
   }, [districtKey, year, loadLocks]);
+
+  const sortedTeams = useMemo(() => sortLocksTeams(data?.teams), [data?.teams]);
 
   return (
     <div className="locks-page">
@@ -184,6 +217,7 @@ export default function LocksPage() {
           <div className="card">
             <div className="card-header">Rankings &amp; DCMP lock %</div>
             <div className="locks-legend">
+              <span><span className="lg top50" /> Top 50 (by lock %, Impact first)</span>
               <span><span className="lg clinched" /> ≥~97% sim.</span>
               <span><span className="lg in-range" /> In range</span>
               <span><span className="lg bubble" /> Bubble</span>
@@ -205,9 +239,9 @@ export default function LocksPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.teams.map((t) => (
-                    <tr key={t.team_key} className={rowClass(t.status)}>
-                      <td>{t.rank}</td>
+                  {sortedTeams.map((t, index) => (
+                    <tr key={t.team_key} className={rowClass(t.status, index)}>
+                      <td>{index + 1}</td>
                       <td>
                         <Link to={`/team/${t.team_key}`} className="team-link">
                           <span className="team-num">{t.team_number}</span>
