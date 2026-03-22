@@ -230,7 +230,7 @@ function EventPage() {
   const [playoffPred, setPlayoffPred] = useState(null);
   const [playoffError, setPlayoffError] = useState(null);
   const [playoffLoading, setPlayoffLoading] = useState(false);
-  /** Non-qual matches for this event (playoff tab): polled every 2 min for actual results next to predictions. */
+  /** Non-qual matches for this event (playoff tab): polled on a short interval for actual results next to predictions. */
   const [playoffMatches, setPlayoffMatches] = useState([]);
 
   const loadData = useCallback(async (silent = false) => {
@@ -296,12 +296,12 @@ function EventPage() {
   useEffect(() => {
     if (activeTab !== 'playoffs') return undefined;
     loadPlayoffMatches();
-    const id = setInterval(loadPlayoffMatches, 120000);
+    const id = setInterval(loadPlayoffMatches, 45000);
     return () => clearInterval(id);
   }, [activeTab, loadPlayoffMatches]);
 
   useEffect(() => {
-    const interval = setInterval(() => { loadData(true); loadPrediction(); }, 120000);
+    const interval = setInterval(() => { loadData(true); loadPrediction(); }, 45000);
     return () => clearInterval(interval);
   }, [loadData, loadPrediction]);
 
@@ -598,7 +598,7 @@ function PlayoffPredictions({ data, playoffMatches }) {
         </p>
         <p className="pred-info-line pred-info-line--sub">
           <strong>Actual</strong> results use scores from this event&apos;s playoff matches in the database; they refresh
-          automatically every <strong>2 minutes</strong> while this tab is open (same cadence as the rest of the event page).
+          automatically about every <strong>45 seconds</strong> while this tab is open (same cadence as rankings and event predictions on this page).
           Best-of-3 series show live wins (e.g. &quot;A3 leads 1–0&quot;) and the winner when the series finishes.
         </p>
       </div>

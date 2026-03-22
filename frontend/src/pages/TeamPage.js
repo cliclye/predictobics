@@ -22,7 +22,7 @@ function predSnapshot(m) {
 }
 
 /**
- * Upcoming matches: always show latest API preds (EPA updates every ~2 min).
+ * Upcoming matches: always show latest API preds (EPA updates on the same ~45s refresh as the page).
  * Finished matches: freeze the first snapshot we have (before or right after the match) so %/preds
  * don't drift when the tab stays open; still shows full preds on first page load.
  */
@@ -100,7 +100,7 @@ function TeamPage() {
   useEffect(() => { loadTeam(); }, [loadTeam]);
 
   useEffect(() => {
-    const interval = setInterval(() => loadTeam(true), 120000);
+    const interval = setInterval(() => loadTeam(true), 45000);
     return () => clearInterval(interval);
   }, [loadTeam]);
 
@@ -151,7 +151,7 @@ function TeamPage() {
       {lastRefresh && (
         <div className="auto-refresh-bar">
           <span className="refresh-dot"></span>
-          Live — auto-updates every 2 min
+          Live — auto-updates about every 45s
           <span className="refresh-time">Last: {lastRefresh.toLocaleTimeString()}</span>
         </div>
       )}
