@@ -198,6 +198,14 @@
   font-weight: 700;
 }
 
+.bracket-match-meta {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .bracket-seed {
   font-weight: 700;
 }

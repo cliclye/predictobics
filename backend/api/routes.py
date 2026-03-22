@@ -8,7 +8,6 @@ model training) are run as background tasks so the API remains responsive.
 import logging
 from typing import Optional
 
-import numpy as np
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query, Header
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +27,11 @@ from backend.metrics.predictor import (
     simulate_event,
     train_model,
     build_alliance_features_from_metrics,
+)
+from backend.metrics.double_elim_playoffs import (
+    make_predict_bo3,
+    monte_carlo_champion_1based,
+    build_double_elim_bracket_display,
 )
 from backend.config import get_settings
 from backend.ingestion.pipeline import ingest_year, ingest_event_matches, bulk_ingest_years
@@ -515,56 +519,16 @@ async def predict_event(
             alliance_epa=round(alliance_epa, 1),
         ))
 
-    # Playoff bracket: QF -> SF -> F
-    # Build a metrics dict keyed by team_key for alliance feature construction
+    # Playoff: official 8-alliance double elimination (13 bracket + finals)
     _metrics_by_tk = {tk: m for tk, (m, t) in team_data.items() if m is not None}
 
-    def _predict_bo3(a1, a2):
-        teams1 = alliances[a1 - 1] if a1 - 1 < len(alliances) else []
-        teams2 = alliances[a2 - 1] if a2 - 1 < len(alliances) else []
-        feat1 = build_alliance_features_from_metrics(teams1, _metrics_by_tk)
-        feat2 = build_alliance_features_from_metrics(teams2, _metrics_by_tk)
-        single_pred = predict_match(feat1, feat2)
-        p = single_pred.red_win_prob
-        # Best of 3: P(win series) = p^2 + 2*p^2*(1-p)
-        series_p = p * p + 2 * p * p * (1 - p)
-        return float(np.clip(series_p, 0.01, 0.99))
-
-    bracket = []
-    qf_matchups = [(1, 8), (4, 5), (2, 7), (3, 6)]
-    qf_winners = []
-    for i, (a, b) in enumerate(qf_matchups):
-        p = _predict_bo3(a, b)
-        winner = a if p >= 0.5 else b
-        qf_winners.append(winner)
-        bracket.append(PlayoffMatch(
-            round_name="Quarterfinal", match_num=i + 1,
-            red_alliance=a, blue_alliance=b,
-            red_win_prob=round(p, 3), winner=winner,
-        ))
-
-    sf_matchups = [(qf_winners[0], qf_winners[1]), (qf_winners[2], qf_winners[3])]
-    sf_winners = []
-    for i, (a, b) in enumerate(sf_matchups):
-        p = _predict_bo3(a, b)
-        winner = a if p >= 0.5 else b
-        sf_winners.append(winner)
-        bracket.append(PlayoffMatch(
-            round_name="Semifinal", match_num=i + 1,
-            red_alliance=a, blue_alliance=b,
-            red_win_prob=round(p, 3), winner=winner,
-        ))
-
-    final_a, final_b = sf_winners[0], sf_winners[1]
-    final_p = _predict_bo3(final_a, final_b)
-    final_winner = final_a if final_p >= 0.5 else final_b
-    bracket.append(PlayoffMatch(
-        round_name="Final", match_num=1,
-        red_alliance=final_a, blue_alliance=final_b,
-        red_win_prob=round(final_p, 3), winner=final_winner,
-    ))
-
-    winner_teams = alliances[final_winner - 1] if final_winner - 1 < len(alliances) else []
+    _predict_bo3 = make_predict_bo3(alliances, _metrics_by_tk)
+    pred_winner_1based = monte_carlo_champion_1based(alliances, _metrics_by_tk, _predict_bo3)
+    bracket = [
+        PlayoffMatch(**row)
+        for row in build_double_elim_bracket_display(alliances, _metrics_by_tk, _predict_bo3)
+    ]
+    winner_teams = alliances[pred_winner_1based - 1] if pred_winner_1based <= len(alliances) else []
 
     ranking_note = (
         "Predicted rank blends EPA, simulated RP, and actual qualification W-L-T (when "
@@ -586,7 +550,7 @@ async def predict_event(
         predicted_rankings=predicted_rankings,
         predicted_alliances=predicted_alliances,
         playoff_bracket=bracket,
-        predicted_winner=final_winner,
+        predicted_winner=pred_winner_1based,
         predicted_winner_teams=winner_teams,
         event_year=event_year,
         alliance_skip_first_pick=apply_skip,
@@ -689,57 +653,19 @@ async def playoff_prediction(
             alliance_epa=round(sum(_epa(tk) for tk in teams), 1),
         ))
 
-    # ── 4. Predict playoff bracket: QF → SF → Final ──
-    def _predict_bo3(a1_idx, a2_idx):
-        t1 = alliances[a1_idx] if a1_idx < len(alliances) else []
-        t2 = alliances[a2_idx] if a2_idx < len(alliances) else []
-        f1 = build_alliance_features_from_metrics(t1, metrics_map)
-        f2 = build_alliance_features_from_metrics(t2, metrics_map)
-        pr = predict_match(f1, f2)
-        p = pr.red_win_prob
-        series_p = p * p + 2 * p * p * (1 - p)
-        return float(np.clip(series_p, 0.01, 0.99))
-
-    bracket = []
-    qf_matchups = [(0, 7), (3, 4), (1, 6), (2, 5)]  # 0-indexed: A1vA8, A4vA5, A2vA7, A3vA6
-    qf_winners = []
-    for i, (a, b) in enumerate(qf_matchups):
-        p = _predict_bo3(a, b)
-        winner_idx = a if p >= 0.5 else b
-        qf_winners.append(winner_idx)
-        bracket.append(PlayoffMatch(
-            round_name="Quarterfinal", match_num=i + 1,
-            red_alliance=a + 1, blue_alliance=b + 1,
-            red_win_prob=round(p, 3), winner=winner_idx + 1,
-        ))
-
-    sf_matchups = [(qf_winners[0], qf_winners[1]), (qf_winners[2], qf_winners[3])]
-    sf_winners = []
-    for i, (a, b) in enumerate(sf_matchups):
-        p = _predict_bo3(a, b)
-        winner_idx = a if p >= 0.5 else b
-        sf_winners.append(winner_idx)
-        bracket.append(PlayoffMatch(
-            round_name="Semifinal", match_num=i + 1,
-            red_alliance=a + 1, blue_alliance=b + 1,
-            red_win_prob=round(p, 3), winner=winner_idx + 1,
-        ))
-
-    final_a, final_b = sf_winners[0], sf_winners[1]
-    final_p = _predict_bo3(final_a, final_b)
-    final_winner_idx = final_a if final_p >= 0.5 else final_b
-    bracket.append(PlayoffMatch(
-        round_name="Final", match_num=1,
-        red_alliance=final_a + 1, blue_alliance=final_b + 1,
-        red_win_prob=round(final_p, 3), winner=final_winner_idx + 1,
-    ))
-
-    winner_teams = alliances[final_winner_idx] if final_winner_idx < len(alliances) else []
+    # ── 4. Double-elimination bracket (8 alliances, 13 + finals) ──
+    _predict_bo3 = make_predict_bo3(alliances, metrics_map)
+    pred_winner_1based = monte_carlo_champion_1based(alliances, metrics_map, _predict_bo3)
+    bracket = [
+        PlayoffMatch(**row)
+        for row in build_double_elim_bracket_display(alliances, metrics_map, _predict_bo3)
+    ]
+    winner_teams = alliances[pred_winner_1based - 1] if pred_winner_1based <= len(alliances) else []
 
     return PlayoffPredictionResponse(
         alliances=resp_alliances,
         playoff_bracket=bracket,
-        predicted_winner=final_winner_idx + 1,
+        predicted_winner=pred_winner_1based,
         predicted_winner_teams=winner_teams,
     )
 

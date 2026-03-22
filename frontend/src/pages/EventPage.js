@@ -4,6 +4,18 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { api } from '../api';
 import './EventPage.css';
 
+/** Display order for 8-alliance double-elimination playoff bracket (API round_name). */
+const PLAYOFF_ROUND_ORDER = [
+  'Upper Round 1',
+  'Lower Round 1',
+  'Upper Round 2',
+  'Lower Round 2',
+  'Upper Bracket Final',
+  'Lower Bracket Final',
+  'Finals',
+];
+const LEGACY_PLAYOFF_ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'];
+
 function EventPage() {
   const { eventKey } = useParams();
   const [event, setEvent] = useState(null);
@@ -272,17 +284,24 @@ function EventPredictions({ pred }) {
         </div>
       </div>
 
-      {/* Playoff Bracket */}
+      {/* Playoff Bracket (double elimination) */}
       <div className="card">
         <div className="card-header">Predicted Playoff Bracket</div>
         <div className="bracket-container">
-          {['Quarterfinal', 'Semifinal', 'Final'].map(round => {
-            const matches = pred.playoff_bracket.filter(m => m.round_name === round);
+          {(pred.playoff_bracket.some((m) => m.round_name === 'Upper Round 1')
+            ? PLAYOFF_ROUND_ORDER
+            : LEGACY_PLAYOFF_ROUNDS
+          ).map((round) => {
+            const matches = pred.playoff_bracket
+              .filter((m) => m.round_name === round)
+              .sort((a, b) => a.match_num - b.match_num);
+            if (matches.length === 0) return null;
             return (
               <div key={round} className="bracket-round">
-                <h4 className="round-label">{round}s</h4>
+                <h4 className="round-label">{round}</h4>
                 {matches.map((m, i) => (
-                  <div key={i} className="bracket-match">
+                  <div key={`${round}-${m.match_num}-${i}`} className="bracket-match">
+                    <div className="bracket-match-meta">Match {m.match_num}</div>
                     <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''}`}>
                       <span className="bracket-seed">A{m.red_alliance}</span>
                       <span className="bracket-pct">{(m.red_win_prob * 100).toFixed(0)}%</span>
@@ -383,7 +402,9 @@ function PlayoffPredictions({ data }) {
     <div className="pred-container">
       <div className="card pred-info-banner">
         <p className="pred-info-line">
-          Playoff predictions based on <strong>actual alliance selections</strong> from The Blue Alliance, combined with EPA-based match win probability.
+          Playoff predictions use the official <strong>double-elimination</strong> bracket (13 matches + finals),{' '}
+          <strong>actual alliance selections</strong> from The Blue Alliance, and EPA-based best-of-3 win probability.
+          Champion is the alliance that wins the most in Monte Carlo simulation of the full bracket.
         </p>
       </div>
 
@@ -405,20 +426,27 @@ function PlayoffPredictions({ data }) {
         </div>
       </div>
 
-      {/* Playoff Bracket */}
+      {/* Playoff Bracket (double elimination) */}
       <div className="card">
         <div className="card-header">Playoff Bracket</div>
         <div className="bracket-container">
-          {['Quarterfinal', 'Semifinal', 'Final'].map(round => {
-            const matches = data.playoff_bracket.filter(m => m.round_name === round);
+          {(data.playoff_bracket.some((m) => m.round_name === 'Upper Round 1')
+            ? PLAYOFF_ROUND_ORDER
+            : LEGACY_PLAYOFF_ROUNDS
+          ).map((round) => {
+            const matches = data.playoff_bracket
+              .filter((m) => m.round_name === round)
+              .sort((a, b) => a.match_num - b.match_num);
+            if (matches.length === 0) return null;
             return (
               <div key={round} className="bracket-round">
-                <h4 className="round-label">{round}s</h4>
+                <h4 className="round-label">{round}</h4>
                 {matches.map((m, i) => {
                   const redAlliance = data.alliances.find(a => a.number === m.red_alliance);
                   const blueAlliance = data.alliances.find(a => a.number === m.blue_alliance);
                   return (
-                    <div key={i} className="bracket-match playoff-bracket-match">
+                    <div key={`${round}-${m.match_num}-${i}`} className="bracket-match playoff-bracket-match">
+                      <div className="bracket-match-meta">Match {m.match_num}</div>
                       <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''}`}>
                         <span className="bracket-seed">A{m.red_alliance}</span>
                         <span className="bracket-team-nums">
