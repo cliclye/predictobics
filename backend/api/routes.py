@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import get_db
 from backend.models.orm import Team, Event, Match, MatchAlliance, TeamEventMetrics
 from backend.api.schemas import (
-    TeamResponse, TeamDetailResponse, TeamMetricsResponse,
+    TeamResponse, TeamDetailResponse, TeamSeasonBundleResponse, TeamMetricsResponse,
     EventResponse, EventRankingEntry, MatchPredictionRequest,
     MatchPredictionResponse, SimulationTeamResult, IngestionStatus,
     MatchResponse, EventPredictionResponse, PredictedRankEntry,
@@ -183,6 +183,67 @@ async def get_team(
     )
 
 
+@router.get("/team/{team_key}/season", response_model=TeamSeasonBundleResponse)
+async def get_team_season(
+    team_key: str,
+    year: int = Query(..., description="Season year"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Team profile plus all matches and event metadata for one season (single round-trip)."""
+    result = await db.execute(select(Team).where(Team.key == team_key))
+    team = result.scalar_one_or_none()
+    if not team:
+        raise HTTPException(404, f"Team {team_key} not found")
+
+    metrics_result = await db.execute(
+        select(TeamEventMetrics)
+        .where(TeamEventMetrics.team_key == team_key)
+        .where(TeamEventMetrics.year == year)
+        .order_by(TeamEventMetrics.event_key)
+    )
+    metrics_rows = metrics_result.scalars().all()
+
+    event_keys_ordered: list[str] = []
+    seen: set[str] = set()
+    for m in metrics_rows:
+        if m.event_key not in seen:
+            seen.add(m.event_key)
+            event_keys_ordered.append(m.event_key)
+
+    matches_by_event = await _match_responses_by_event(db, event_keys_ordered)
+
+    event_infos: dict[str, EventResponse] = {}
+    if event_keys_ordered:
+        evs = await db.execute(select(Event).where(Event.key.in_(event_keys_ordered)))
+        for e in evs.scalars().all():
+            event_infos[e.key] = EventResponse(
+                key=e.key, name=e.name, year=e.year,
+                city=e.city, state_prov=e.state_prov, country=e.country,
+                start_date=e.start_date, end_date=e.end_date, week=e.week,
+            )
+
+    return TeamSeasonBundleResponse(
+        team=TeamResponse(
+            key=team.key, team_number=team.team_number, name=team.name,
+            city=team.city, state_prov=team.state_prov, country=team.country,
+            rookie_year=team.rookie_year,
+        ),
+        metrics=[
+            TeamMetricsResponse(
+                team_key=m.team_key, event_key=m.event_key, year=m.year,
+                epa_total=m.epa_total, epa_auto=m.epa_auto,
+                epa_teleop=m.epa_teleop, epa_endgame=m.epa_endgame,
+                epa_defense_adjusted=m.epa_defense_adjusted,
+                consistency=m.consistency, reliability=m.reliability,
+                strength_of_schedule=m.strength_of_schedule,
+                matches_played=m.matches_played or 0,
+            ) for m in metrics_rows
+        ],
+        event_matches={ek: matches_by_event.get(ek, []) for ek in event_keys_ordered},
+        event_infos=event_infos,
+    )
+
+
 @router.get("/teams", response_model=list[TeamResponse])
 async def list_teams(
     page: int = Query(0, ge=0),
@@ -277,24 +338,30 @@ async def get_rankings(event_key: str, db: AsyncSession = Depends(get_db)):
 COMP_LEVEL_ORDER = {"qm": 0, "ef": 1, "qf": 2, "sf": 3, "f": 4}
 
 
-@router.get("/matches/{event_key}", response_model=list[MatchResponse])
-async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
+async def _match_responses_by_event(
+    db: AsyncSession,
+    event_keys: list[str],
+) -> dict[str, list[MatchResponse]]:
+    """Build match predictions for many events in a small number of DB round-trips."""
+    out: dict[str, list[MatchResponse]] = {ek: [] for ek in event_keys}
+    if not event_keys:
+        return out
+
     matches_result = await db.execute(
-        select(Match).where(Match.event_key == event_key)
+        select(Match).where(Match.event_key.in_(event_keys))
     )
     matches = matches_result.scalars().all()
-
     if not matches:
-        return []
+        return out
 
+    mkeys = [m.key for m in matches]
     alliances_result = await db.execute(
-        select(MatchAlliance)
-        .where(MatchAlliance.match_key.in_([m.key for m in matches]))
+        select(MatchAlliance).where(MatchAlliance.match_key.in_(mkeys))
     )
-    alliances = alliances_result.scalars().all()
+    alliance_rows = alliances_result.scalars().all()
 
     alliance_map: dict[str, dict[str, list[str]]] = {}
-    for a in alliances:
+    for a in alliance_rows:
         alliance_map.setdefault(a.match_key, {}).setdefault(a.alliance, [])
         teams = alliance_map[a.match_key][a.alliance]
         while len(teams) <= (a.position or 0):
@@ -302,47 +369,64 @@ async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
         teams[a.position or len(teams) - 1] = a.team_key
 
     metrics_result = await db.execute(
-        select(TeamEventMetrics)
-        .where(TeamEventMetrics.event_key == event_key)
+        select(TeamEventMetrics).where(TeamEventMetrics.event_key.in_(event_keys))
     )
-    metrics = {m.team_key: m for m in metrics_result.scalars().all()}
+    metrics_by_event: dict[str, dict[str, TeamEventMetrics]] = {}
+    for met in metrics_result.scalars().all():
+        metrics_by_event.setdefault(met.event_key, {})[met.team_key] = met
 
-    results = []
+    grouped: dict[str, list[Match]] = {}
     for m in matches:
-        sides = alliance_map.get(m.key, {})
-        red_teams = sides.get("red", [])
-        blue_teams = sides.get("blue", [])
+        grouped.setdefault(m.event_key, []).append(m)
 
-        red_feat = build_alliance_features_from_metrics(red_teams, metrics)
-        blue_feat = build_alliance_features_from_metrics(blue_teams, metrics)
+    for ek in event_keys:
+        mlist = grouped.get(ek, [])
+        ev_metrics = metrics_by_event.get(ek, {})
+        results: list[MatchResponse] = []
+        for m in mlist:
+            sides = alliance_map.get(m.key, {})
+            red_teams = sides.get("red", [])
+            blue_teams = sides.get("blue", [])
 
-        red_win_prob = None
-        red_pred = None
-        blue_pred = None
-        if red_feat.total_epa or blue_feat.total_epa:
-            pred = predict_match(red_feat, blue_feat)
-            red_win_prob = pred.red_win_prob
-            red_pred = round(pred.red_expected_score, 1)
-            blue_pred = round(pred.blue_expected_score, 1)
+            red_feat = build_alliance_features_from_metrics(red_teams, ev_metrics)
+            blue_feat = build_alliance_features_from_metrics(blue_teams, ev_metrics)
 
-        results.append(MatchResponse(
-            key=m.key,
-            comp_level=m.comp_level,
-            set_number=m.set_number,
-            match_number=m.match_number,
-            time=m.time,
-            red_score=m.red_score,
-            blue_score=m.blue_score,
-            winning_alliance=m.winning_alliance,
-            red_teams=red_teams,
-            blue_teams=blue_teams,
-            red_predicted_score=red_pred,
-            blue_predicted_score=blue_pred,
-            red_win_prob=red_win_prob,
-        ))
+            red_win_prob = None
+            red_pred = None
+            blue_pred = None
+            if red_feat.total_epa or blue_feat.total_epa:
+                pred = predict_match(red_feat, blue_feat)
+                red_win_prob = pred.red_win_prob
+                red_pred = round(pred.red_expected_score, 1)
+                blue_pred = round(pred.blue_expected_score, 1)
 
-    results.sort(key=lambda r: (COMP_LEVEL_ORDER.get(r.comp_level, 99), r.set_number, r.match_number))
-    return results
+            results.append(MatchResponse(
+                key=m.key,
+                comp_level=m.comp_level,
+                set_number=m.set_number,
+                match_number=m.match_number,
+                time=m.time,
+                red_score=m.red_score,
+                blue_score=m.blue_score,
+                winning_alliance=m.winning_alliance,
+                red_teams=red_teams,
+                blue_teams=blue_teams,
+                red_predicted_score=red_pred,
+                blue_predicted_score=blue_pred,
+                red_win_prob=red_win_prob,
+            ))
+
+        results.sort(
+            key=lambda r: (COMP_LEVEL_ORDER.get(r.comp_level, 99), r.set_number, r.match_number)
+        )
+        out[ek] = results
+    return out
+
+
+@router.get("/matches/{event_key}", response_model=list[MatchResponse])
+async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
+    by_ek = await _match_responses_by_event(db, [event_key])
+    return by_ek.get(event_key, [])
 
 
 # ──────────────────────────── Predictions ────────────────────────────
@@ -371,7 +455,7 @@ async def predict_match_endpoint(
 @router.get("/simulate/{event_key}", response_model=list[SimulationTeamResult])
 async def simulate_event_endpoint(
     event_key: str,
-    n: int = Query(500, ge=10, le=5000),
+    n: int = Query(280, ge=10, le=5000),
 ):
     results = await simulate_event(event_key, n_simulations=n)
     return [
@@ -392,7 +476,7 @@ async def simulate_event_endpoint(
 @router.get("/event_prediction/{event_key}", response_model=EventPredictionResponse)
 async def predict_event(
     event_key: str,
-    n: int = Query(500, ge=50, le=5000),
+    n: int = Query(280, ge=50, le=5000),
     skip_first_pick: Optional[bool] = Query(
         None,
         description="Alliance 1 defers first pick to end of round 1 (2025+ rule). "

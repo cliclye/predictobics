@@ -16,6 +16,93 @@ const PLAYOFF_ROUND_ORDER = [
 ];
 const LEGACY_PLAYOFF_ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'];
 
+/** Double-elim band groupings (TBA-style winners / losers / finals). */
+const DE_WINNERS_ROUNDS = ['Upper Round 1', 'Upper Round 2', 'Upper Bracket Final'];
+const DE_LOSERS_ROUNDS = ['Lower Round 1', 'Lower Round 2', 'Lower Bracket Final'];
+const DE_FINALS = 'Finals';
+
+function allianceNumsForBracket(a) {
+  if (!a) return '';
+  if (Array.isArray(a.team_numbers) && a.team_numbers.length) return a.team_numbers.join(', ');
+  const nums = [a.captain_num, a.pick1_num, a.pick2_num].filter((n) => n != null && n !== '');
+  return nums.join(', ');
+}
+
+function DoubleElimBracket({ bracket, alliances }) {
+  const rounds = bracket.some((m) => m.round_name === 'Upper Round 1')
+    ? PLAYOFF_ROUND_ORDER
+    : LEGACY_PLAYOFF_ROUNDS;
+  const isDe = bracket.some((m) => m.round_name === 'Upper Round 1');
+  const findA = (n) => (alliances ? alliances.find((x) => x.number === n) : null);
+
+  const renderMatch = (m, i, round) => {
+    const redA = findA(m.red_alliance);
+    const blueA = findA(m.blue_alliance);
+    const numsR = allianceNumsForBracket(redA);
+    const numsB = allianceNumsForBracket(blueA);
+    const extraClass = numsR || numsB ? ' playoff-bracket-match' : '';
+    return (
+      <div key={`${round}-${m.match_num}-${i}`} className={`bracket-match${extraClass}`}>
+        <div className="bracket-match-meta">Match {m.match_num}</div>
+        <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''} bracket-team--red`}>
+          <span className="bracket-seed">A{m.red_alliance}</span>
+          {numsR ? <span className="bracket-team-nums">{numsR}</span> : null}
+          <span className="bracket-pct">{(m.red_win_prob * 100).toFixed(0)}%</span>
+        </div>
+        <div className={`bracket-team ${m.winner === m.blue_alliance ? 'bracket-winner' : ''} bracket-team--blue`}>
+          <span className="bracket-seed">A{m.blue_alliance}</span>
+          {numsB ? <span className="bracket-team-nums">{numsB}</span> : null}
+          <span className="bracket-pct">{((1 - m.red_win_prob) * 100).toFixed(0)}%</span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRoundColumn = (round) => {
+    const matches = bracket
+      .filter((mn) => mn.round_name === round)
+      .sort((a, b) => a.match_num - b.match_num);
+    if (matches.length === 0) return null;
+    return (
+      <div key={round} className="bracket-round">
+        <h4 className="round-label">{round}</h4>
+        {matches.map((m, i) => renderMatch(m, i, round))}
+      </div>
+    );
+  };
+
+  if (!isDe) {
+    return (
+      <div className="bracket-container bracket-container--legacy">
+        {rounds.map((round) => renderRoundColumn(round))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bracket-de">
+      <div className="bracket-de-band">
+        <div className="bracket-de-band-title">Winners bracket</div>
+        <div className="bracket-de-scroll">
+          {DE_WINNERS_ROUNDS.map((r) => renderRoundColumn(r))}
+        </div>
+      </div>
+      <div className="bracket-de-band bracket-de-band--losers">
+        <div className="bracket-de-band-title">Losers bracket</div>
+        <div className="bracket-de-scroll">
+          {DE_LOSERS_ROUNDS.map((r) => renderRoundColumn(r))}
+        </div>
+      </div>
+      <div className="bracket-de-band bracket-de-band--finals">
+        <div className="bracket-de-band-title">Finals</div>
+        <div className="bracket-de-scroll bracket-de-scroll--finals">
+          {renderRoundColumn(DE_FINALS)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EventPage() {
   const { eventKey } = useParams();
   const [event, setEvent] = useState(null);
@@ -287,35 +374,7 @@ function EventPredictions({ pred }) {
       {/* Playoff Bracket (double elimination) */}
       <div className="card">
         <div className="card-header">Predicted Playoff Bracket</div>
-        <div className="bracket-container">
-          {(pred.playoff_bracket.some((m) => m.round_name === 'Upper Round 1')
-            ? PLAYOFF_ROUND_ORDER
-            : LEGACY_PLAYOFF_ROUNDS
-          ).map((round) => {
-            const matches = pred.playoff_bracket
-              .filter((m) => m.round_name === round)
-              .sort((a, b) => a.match_num - b.match_num);
-            if (matches.length === 0) return null;
-            return (
-              <div key={round} className="bracket-round">
-                <h4 className="round-label">{round}</h4>
-                {matches.map((m, i) => (
-                  <div key={`${round}-${m.match_num}-${i}`} className="bracket-match">
-                    <div className="bracket-match-meta">Match {m.match_num}</div>
-                    <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''}`}>
-                      <span className="bracket-seed">A{m.red_alliance}</span>
-                      <span className="bracket-pct">{(m.red_win_prob * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className={`bracket-team ${m.winner === m.blue_alliance ? 'bracket-winner' : ''}`}>
-                      <span className="bracket-seed">A{m.blue_alliance}</span>
-                      <span className="bracket-pct">{((1 - m.red_win_prob) * 100).toFixed(0)}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+        <DoubleElimBracket bracket={pred.playoff_bracket} alliances={pred.predicted_alliances} />
       </div>
 
       {/* Predicted Alliances */}
@@ -403,8 +462,9 @@ function PlayoffPredictions({ data }) {
       <div className="card pred-info-banner">
         <p className="pred-info-line">
           Playoff predictions use the official <strong>double-elimination</strong> bracket (13 matches + finals),{' '}
-          <strong>actual alliance selections</strong> from The Blue Alliance, and EPA-based best-of-3 win probability.
-          Champion is the alliance that wins the most in Monte Carlo simulation of the full bracket.
+          <strong>actual alliance selections</strong> from The Blue Alliance, and best-of-3 win probability from
+          offense EPA plus <strong>defense-adjusted EPA</strong> blended into each alliance&apos;s strength.
+          The likely champion is the alliance that wins most often in Monte Carlo simulation of the bracket.
         </p>
       </div>
 
@@ -429,45 +489,7 @@ function PlayoffPredictions({ data }) {
       {/* Playoff Bracket (double elimination) */}
       <div className="card">
         <div className="card-header">Playoff Bracket</div>
-        <div className="bracket-container">
-          {(data.playoff_bracket.some((m) => m.round_name === 'Upper Round 1')
-            ? PLAYOFF_ROUND_ORDER
-            : LEGACY_PLAYOFF_ROUNDS
-          ).map((round) => {
-            const matches = data.playoff_bracket
-              .filter((m) => m.round_name === round)
-              .sort((a, b) => a.match_num - b.match_num);
-            if (matches.length === 0) return null;
-            return (
-              <div key={round} className="bracket-round">
-                <h4 className="round-label">{round}</h4>
-                {matches.map((m, i) => {
-                  const redAlliance = data.alliances.find(a => a.number === m.red_alliance);
-                  const blueAlliance = data.alliances.find(a => a.number === m.blue_alliance);
-                  return (
-                    <div key={`${round}-${m.match_num}-${i}`} className="bracket-match playoff-bracket-match">
-                      <div className="bracket-match-meta">Match {m.match_num}</div>
-                      <div className={`bracket-team ${m.winner === m.red_alliance ? 'bracket-winner' : ''}`}>
-                        <span className="bracket-seed">A{m.red_alliance}</span>
-                        <span className="bracket-team-nums">
-                          {redAlliance && redAlliance.team_numbers.map(n => n).join(', ')}
-                        </span>
-                        <span className="bracket-pct">{(m.red_win_prob * 100).toFixed(0)}%</span>
-                      </div>
-                      <div className={`bracket-team ${m.winner === m.blue_alliance ? 'bracket-winner' : ''}`}>
-                        <span className="bracket-seed">A{m.blue_alliance}</span>
-                        <span className="bracket-team-nums">
-                          {blueAlliance && blueAlliance.team_numbers.map(n => n).join(', ')}
-                        </span>
-                        <span className="bracket-pct">{((1 - m.red_win_prob) * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
+        <DoubleElimBracket bracket={data.playoff_bracket} alliances={data.alliances} />
       </div>
 
       {/* Actual Alliances */}

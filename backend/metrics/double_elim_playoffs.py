@@ -25,13 +25,27 @@ def make_predict_bo3(
 ) -> Callable[[int, int], float]:
     """Return P(alliance a_idx wins Bo3 vs b_idx), 0-based indices."""
 
+    cache: dict[tuple[int, int], float] = {}
+
     def _p(a_idx: int, b_idx: int) -> float:
+        key = (a_idx, b_idx)
+        if key in cache:
+            return cache[key]
         t1 = alliances[a_idx] if a_idx < len(alliances) else []
         t2 = alliances[b_idx] if b_idx < len(alliances) else []
-        f1 = build_alliance_features_from_metrics(t1, metrics_map)
-        f2 = build_alliance_features_from_metrics(t2, metrics_map)
-        pr = predict_match(f1, f2)
-        return _series_p_win_bo3(pr.red_win_prob)
+        if not t1 and not t2:
+            out = 0.5
+        elif not t1:
+            out = 0.0
+        elif not t2:
+            out = 1.0
+        else:
+            f1 = build_alliance_features_from_metrics(t1, metrics_map)
+            f2 = build_alliance_features_from_metrics(t2, metrics_map)
+            pr = predict_match(f1, f2)
+            out = _series_p_win_bo3(pr.red_win_prob)
+        cache[key] = out
+        return out
 
     return _p
 
@@ -80,8 +94,6 @@ def simulate_double_elim_winner(
     # Lower R1 — M5, M6
     w5 = sim(l1, l2)
     w6 = sim(l3, l4)
-    ll1 = _loser(l1, l2, w5)
-    ll2 = _loser(l3, l4, w6)
 
     # Upper R2 — M7, M8
     w7 = sim(w1, w2)
@@ -111,7 +123,7 @@ def monte_carlo_champion_1based(
     alliances: list[list[str]],
     metrics_map: dict[str, Any],
     predict_bo3: Callable[[int, int], float],
-    n_sims: int = 8000,
+    n_sims: int = 1800,
     seed: int = 42,
 ) -> int:
     """Return 1-based alliance number most likely to win the tournament."""
@@ -137,6 +149,14 @@ def build_double_elim_bracket_display(
         return []
 
     def pick(a: int, b: int) -> int:
+        ta = alliances[a] if a < len(alliances) else []
+        tb = alliances[b] if b < len(alliances) else []
+        if not ta and not tb:
+            return min(a, b)
+        if not ta:
+            return b
+        if not tb:
+            return a
         ea = _epa_sum(alliances, metrics_map, a)
         eb = _epa_sum(alliances, metrics_map, b)
         return a if ea >= eb else b

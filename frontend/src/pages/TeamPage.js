@@ -79,32 +79,13 @@ function TeamPage() {
       setEventInfos({});
     }
     try {
-      const result = await api.getTeam(teamKey, year);
+      const result = await api.getTeamSeason(teamKey, year);
       setTeam(result.team);
       setMetrics(result.metrics);
 
-      const eventKeys = result.metrics.map(m => m.event_key);
-      const matchPromises = eventKeys.map(ek =>
-        api.getMatches(ek).then(matches => [ek, matches]).catch(() => [ek, []])
-      );
-      const eventPromises = eventKeys.map(ek =>
-        api.getEvent(ek).then(ev => [ek, ev]).catch(() => [ek, null])
-      );
-
-      const [matchResults, eventResults] = await Promise.all([
-        Promise.all(matchPromises),
-        Promise.all(eventPromises),
-      ]);
-
-      const mMap = {};
-      matchResults.forEach(([ek, matches]) => {
-        mMap[ek] = matches;
-      });
+      const mMap = result.event_matches || {};
       setEventMatches(applyStableMatchPredictions(mMap, matchPredStableRef));
-
-      const eMap = {};
-      eventResults.forEach(([ek, ev]) => { if (ev) eMap[ek] = ev; });
-      setEventInfos(eMap);
+      setEventInfos(result.event_infos || {});
       setLastRefresh(new Date());
     } catch (err) {
       if (!silent) setError(err.message);

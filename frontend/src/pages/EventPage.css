@@ -150,6 +150,71 @@
 }
 
 /* Bracket */
+.bracket-de {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.bracket-de-band {
+  background: linear-gradient(180deg, rgba(88, 166, 255, 0.07) 0%, transparent 120%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 0.75rem 1rem;
+}
+
+.bracket-de-band--losers {
+  background: linear-gradient(180deg, rgba(248, 81, 73, 0.06) 0%, transparent 120%);
+}
+
+.bracket-de-band--finals {
+  background: linear-gradient(180deg, rgba(63, 185, 80, 0.07) 0%, transparent 120%);
+  border-color: rgba(63, 185, 80, 0.28);
+}
+
+.bracket-de-band-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 0.65rem;
+}
+
+.bracket-de-band--losers .bracket-de-band-title {
+  color: #f85149;
+}
+
+.bracket-de-band--finals .bracket-de-band-title {
+  color: #4ade80;
+}
+
+.bracket-de-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scroll-snap-type: x proximity;
+}
+
+.bracket-de-scroll .bracket-round {
+  scroll-snap-align: start;
+}
+
+.bracket-de-scroll--finals {
+  justify-content: center;
+}
+
+.bracket-team--red {
+  border-left: 3px solid rgba(248, 81, 73, 0.5);
+  padding-left: 0.5rem;
+}
+
+.bracket-team--blue {
+  border-left: 3px solid rgba(88, 166, 255, 0.55);
+  padding-left: 0.5rem;
+}
+
 .bracket-container {
   display: flex;
   gap: 1.5rem;
@@ -334,6 +399,12 @@
 @media (max-width: 768px) {
   .bracket-container {
     flex-direction: column;
+  }
+
+  .bracket-de-scroll {
+    flex-direction: column;
+    overflow-x: visible;
+    scroll-snap-type: none;
   }
 
   .alliances-grid {

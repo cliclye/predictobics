@@ -80,14 +80,17 @@ export async function fetchServerInfo() {
 
 export const api = {
   getTeam: (key, year) => fetchJSON(`/team/${key}${year ? `?year=${year}` : ''}`),
+  /** Team + season metrics + all event matches + event info in one request. */
+  getTeamSeason: (key, year) => fetchJSON(`/team/${key}/season?year=${year}`),
   searchTeams: (query, page = 0) => fetchJSON(`/teams?search=${encodeURIComponent(query)}&page=${page}&size=20`),
   getEvent: (key) => fetchJSON(`/event/${key}`),
   getEvents: (year) => fetchJSON(`/events?year=${year}`),
   getRankings: (eventKey) => fetchJSON(`/rankings/${eventKey}`),
   getMatches: (eventKey) => fetchJSON(`/matches/${eventKey}`),
   predictMatch: (body) => postJSON('/match_prediction', body),
-  simulate: (eventKey, n = 500) => fetchJSON(`/simulate/${eventKey}?n=${n}`),
-  getEventPrediction: (eventKey) => fetchJSON(`/event_prediction/${eventKey}`),
+  simulate: (eventKey, n = 280) => fetchJSON(`/simulate/${eventKey}?n=${n}`),
+  getEventPrediction: (eventKey, n = 280) =>
+    fetchJSON(`/event_prediction/${eventKey}?n=${n}`),
   getPlayoffPrediction: (eventKey) => fetchJSON(`/playoff_prediction/${eventKey}`),
   ingest: (year) => postJSON(`/ingest/${year}`, undefined, { admin: true }),
   compute: (eventKey) => postJSON(`/compute/${eventKey}`, undefined, { admin: true }),

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     prediction_ml_blend_weight: float = 0.42
     # Blend sum of per-team defense-adjusted EPA into the Gaussian mean (0 = off).
     # Applies to match win % / score expectations and Monte Carlo event simulation.
-    prediction_defense_blend: float = 0.18
+    prediction_defense_blend: float = 0.28
     # Default noise variance for Gaussian model; auto-calibrated from EPA residuals when available
     prediction_noise_variance: float = 92.0
     # Continuous reliability variance scaling: variance *= 1 + (1-reliability) * this

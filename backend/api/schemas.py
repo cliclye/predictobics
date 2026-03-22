@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
@@ -97,6 +99,15 @@ class MatchResponse(BaseModel):
     red_predicted_score: Optional[float] = None
     blue_predicted_score: Optional[float] = None
     red_win_prob: Optional[float] = None
+
+
+class TeamSeasonBundleResponse(BaseModel):
+    """Single response for team page: metrics plus all event matches and event metadata (avoids N+1 API calls)."""
+
+    team: TeamResponse
+    metrics: list[TeamMetricsResponse]
+    event_matches: dict[str, list[MatchResponse]]
+    event_infos: dict[str, EventResponse]
 
 
 class PredictedRankEntry(BaseModel):
