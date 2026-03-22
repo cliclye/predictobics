@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, fetchServerInfo, clientCanSendWriteSecret } from '../api';
+import { api } from '../api';
 import './TeamPage.css';
 
 const COMP_LABELS = { qm: 'Quals', ef: 'Eighths', qf: 'Quarters', sf: 'Semis', f: 'Finals' };
@@ -14,15 +14,8 @@ function TeamPage() {
   const [eventInfos, setEventInfos] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [ingesting, setIngesting] = useState(false);
-  const [ingestMsg, setIngestMsg] = useState(null);
-  const [serverWriteSecret, setServerWriteSecret] = useState(null);
   const [algoOpen, setAlgoOpen] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
-
-  useEffect(() => {
-    fetchServerInfo().then((s) => setServerWriteSecret(!!s.write_secret_required));
-  }, []);
 
   const years = [];
   for (let y = new Date().getFullYear(); y >= 2002; y--) years.push(y);
@@ -175,40 +168,7 @@ function TeamPage() {
 
       {metrics.length === 0 ? (
         <div className="empty-state">
-          <p className="empty-title">No data for {year}</p>
-          <p className="empty-sub">This team has no ingested events for the {year} season.</p>
-          {ingestMsg ? (
-            <p className="ingest-msg">{ingestMsg}</p>
-          ) : serverWriteSecret === null ? (
-            <p className="ingest-msg" style={{ color: 'var(--text-muted)' }}>
-              Loading…
-            </p>
-          ) : serverWriteSecret && !clientCanSendWriteSecret ? (
-            <p className="ingest-msg" style={{ color: 'var(--text-muted)' }}>
-              Ingestion from this site is turned off for this server. Use an admin client with X-Admin-Secret or run
-              the API without a write secret in development.
-            </p>
-          ) : (
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: '1rem' }}
-              disabled={ingesting}
-              onClick={async () => {
-                setIngesting(true);
-                setIngestMsg(null);
-                try {
-                  await api.ingest(year);
-                  setIngestMsg(`Ingesting ${year} data. This takes a few minutes — refresh shortly.`);
-                  setTimeout(() => loadTeam(), 60000);
-                } catch (err) {
-                  setIngestMsg(`Failed: ${err.message}`);
-                }
-                setIngesting(false);
-              }}
-            >
-              {ingesting ? 'Starting...' : `Ingest ${year} Data from TBA`}
-            </button>
-          )}
+          <p className="empty-title">Not available</p>
         </div>
       ) : (
         metrics.map(m => (

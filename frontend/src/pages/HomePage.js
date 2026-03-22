@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, fetchServerInfo, clientCanSendWriteSecret } from '../api';
+import { api } from '../api';
 import './HomePage.css';
 
 function HomePage() {
@@ -11,14 +11,7 @@ function HomePage() {
   const [teamSearch, setTeamSearch] = useState('');
   const [teamResults, setTeamResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [ingesting, setIngesting] = useState(false);
-  const [ingestMsg, setIngestMsg] = useState(null);
-  const [serverWriteSecret, setServerWriteSecret] = useState(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchServerInfo().then((s) => setServerWriteSecret(!!s.write_secret_required));
-  }, []);
 
   useEffect(() => {
     loadEvents();
@@ -52,19 +45,6 @@ function HomePage() {
       setTeamResults([]);
     }
     setSearching(false);
-  }
-
-  async function handleIngest() {
-    setIngesting(true);
-    setIngestMsg(null);
-    try {
-      await api.ingest(year);
-      setIngestMsg(`Ingesting ${year} data from TBA. This takes a few minutes — refresh shortly.`);
-      setTimeout(() => loadEvents(), 60000);
-    } catch (err) {
-      setIngestMsg(`Ingestion failed: ${err.message}`);
-    }
-    setIngesting(false);
   }
 
   const years = [];
@@ -142,26 +122,7 @@ function HomePage() {
 
         {!loading && events.length === 0 && !error && (
           <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No event data for {year}.</p>
-            {ingestMsg ? (
-              <p style={{ color: 'var(--accent)', fontSize: '0.875rem' }}>{ingestMsg}</p>
-            ) : serverWriteSecret === null ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading…</p>
-            ) : serverWriteSecret && !clientCanSendWriteSecret ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '28rem', margin: '0 auto' }}>
-                Ingestion from this site is turned off for this server. Use a private admin client or curl with
-                X-Admin-Secret, or run without a write secret in development.
-              </p>
-            ) : (
-              <button
-                className="btn btn-primary"
-                onClick={handleIngest}
-                disabled={ingesting}
-                style={{ marginTop: '0.5rem' }}
-              >
-                {ingesting ? 'Starting...' : `Ingest ${year} Data from TBA`}
-              </button>
-            )}
+            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>Not available</p>
           </div>
         )}
       </div>
