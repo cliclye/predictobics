@@ -9,6 +9,7 @@ function EventPage() {
   const [event, setEvent] = useState(null);
   const [rankings, setRankings] = useState([]);
   const [prediction, setPrediction] = useState(null);
+  const [predError, setPredError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [predLoading, setPredLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -33,11 +34,14 @@ function EventPage() {
 
   const loadPrediction = useCallback(async () => {
     setPredLoading(true);
+    setPredError(null);
     try {
       const pred = await api.getEventPrediction(eventKey);
       setPrediction(pred);
     } catch (err) {
       console.error('Prediction load failed:', err);
+      setPrediction(null);
+      setPredError(err.message || 'Could not load event predictions.');
     }
     setPredLoading(false);
   }, [eventKey]);
@@ -162,9 +166,21 @@ function EventPage() {
         <div className="predictions-section">
           {predLoading && <div className="loading">Running simulations...</div>}
           {prediction && <EventPredictions pred={prediction} />}
-          {!predLoading && !prediction && (
+          {predError && (
+            <div className="card pred-error-card" style={{ textAlign: 'center', padding: '2rem' }}>
+              <p style={{ color: '#f85149', marginBottom: '0.75rem', fontWeight: 600 }}>Predictions unavailable</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: 520, margin: '0 auto' }}>{predError}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1rem' }}>
+                If you host the site on Vercel, set <code style={{ color: 'var(--accent)' }}>REACT_APP_API_URL</code> to your Railway API URL and redeploy.
+              </p>
+            </div>
+          )}
+          {!predLoading && !prediction && !predError && (
             <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
               <p style={{ color: 'var(--text-muted)' }}>No prediction data available.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>
+                Ingest the event year from the home page, then run compute so EPA exists for this event.
+              </p>
             </div>
           )}
         </div>

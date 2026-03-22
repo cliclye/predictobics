@@ -315,6 +315,44 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
 
 # ──────────────────── Monte Carlo Event Simulation ────────────────────
 
+
+def _epa_only_ranking_simulation(
+    metrics: dict,
+    team_keys: list[str],
+    n_simulations: int,
+) -> dict[str, dict]:
+    """
+    When qual matches aren't linked in DB or MC yields flat RP, rank teams by
+    noisy effective-EPA draws so predicted orderings still work.
+    """
+    sim_results: dict[str, list[float]] = {tk: [] for tk in team_keys}
+    for _ in range(n_simulations):
+        for tk in team_keys:
+            m = metrics.get(tk)
+            if not m:
+                sim_results[tk].append(0.0)
+                continue
+            mu = (m.epa_total or 0) * (m.consistency or 0.5) * (m.reliability or 1.0)
+            sigma = float(np.sqrt(max(m.score_variance or 0, 0) + 25.0))
+            if sigma < 1e-3:
+                sigma = 12.0
+            sim_results[tk].append(mu + float(np.random.normal(0, sigma)))
+
+    output: dict[str, dict] = {}
+    for tk in team_keys:
+        scores = sim_results[tk]
+        output[tk] = {
+            "avg_rp": float(np.mean(scores)),
+            "median_rp": float(np.median(scores)),
+            "p90_rp": float(np.percentile(scores, 90)),
+            "p10_rp": float(np.percentile(scores, 10)),
+        }
+    sorted_teams = sorted(output.keys(), key=lambda t: output[t]["avg_rp"], reverse=True)
+    for rank, tk in enumerate(sorted_teams, 1):
+        output[tk]["avg_rank"] = rank
+    return output
+
+
 async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str, dict]:
     from sqlalchemy import select
     from backend.database import async_session
@@ -334,11 +372,14 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
         )
         matches = matches_result.scalars().all()
 
-        alliances_result = await session.execute(
-            select(MatchAlliance)
-            .where(MatchAlliance.match_key.in_([m.key for m in matches]))
-        )
-        alliances_list = alliances_result.scalars().all()
+        match_keys = [m.key for m in matches]
+        if match_keys:
+            alliances_result = await session.execute(
+                select(MatchAlliance).where(MatchAlliance.match_key.in_(match_keys))
+            )
+            alliances_list = alliances_result.scalars().all()
+        else:
+            alliances_list = []
 
     alliance_map: dict[str, dict[str, list[str]]] = {}
     for a in alliances_list:
@@ -347,10 +388,18 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
     unplayed = [m for m in matches if m.winning_alliance is None or m.winning_alliance == ""]
     played = [m for m in matches if m.winning_alliance and m.winning_alliance != ""]
 
-    all_teams = set()
+    all_teams: set[str] = set()
     for sides in alliance_map.values():
         for team_list in sides.values():
             all_teams.update(team_list)
+
+    # If QM rows exist but alliance rows failed to load, or schedule not ingested yet,
+    # still predict from every team that has EPA metrics for this event.
+    if not all_teams and metrics:
+        all_teams = set(metrics.keys())
+
+    if not all_teams:
+        return {}
 
     base_rp: dict[str, float] = {tk: 0.0 for tk in all_teams}
     for m in played:
@@ -401,7 +450,7 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
         for tk in all_teams:
             sim_results[tk].append(rp.get(tk, 0))
 
-    output = {}
+    output: dict[str, dict] = {}
     for tk in all_teams:
         scores = sim_results[tk]
         output[tk] = {
@@ -410,6 +459,12 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
             "p90_rp": float(np.percentile(scores, 90)),
             "p10_rp": float(np.percentile(scores, 10)),
         }
+
+    # Degenerate: no RP variance (e.g. missing alliance data on all unplayed matches).
+    if len(output) > 1:
+        vals = [v["avg_rp"] for v in output.values()]
+        if float(np.std(vals)) < 1e-6:
+            output = _epa_only_ranking_simulation(metrics, list(all_teams), n_simulations)
 
     sorted_teams = sorted(output.keys(), key=lambda t: output[t]["avg_rp"], reverse=True)
     for rank, tk in enumerate(sorted_teams, 1):

@@ -308,7 +308,10 @@ async def predict_event(
 
     sim_results = await simulate_event(event_key, n_simulations=n)
     if not sim_results:
-        raise HTTPException(404, f"No simulation data for {event_key}")
+        raise HTTPException(
+            404,
+            f"No prediction data for {event_key}: ingest matches and compute EPA for this event first.",
+        )
 
     metrics_result = await db.execute(
         select(TeamEventMetrics, Team)
@@ -321,7 +324,7 @@ async def predict_event(
         select(Match).where(Match.event_key == event_key)
         .where(Match.comp_level == "qm")
     )
-    total_quals = len(matches_result.scalars().all()) // 2
+    total_quals = len(matches_result.scalars().all())
 
     ranked = sorted(sim_results.items(), key=lambda x: x[1]["avg_rp"], reverse=True)
 

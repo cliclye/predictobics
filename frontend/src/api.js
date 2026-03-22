@@ -13,7 +13,16 @@ async function fetchJSON(path) {
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  if (!res.ok) throw new Error(`API error ${res.status}`);
+  if (!res.ok) {
+    const detail = data.detail;
+    const msg =
+      typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail) && detail[0]?.msg
+          ? detail.map((d) => d.msg).join('; ')
+          : `API error ${res.status}`;
+    throw new Error(msg);
+  }
   return data;
 }
 
@@ -34,7 +43,16 @@ async function postJSON(path, body) {
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  if (!res.ok) throw new Error(`API error ${res.status}`);
+  if (!res.ok) {
+    const detail = data.detail;
+    const msg =
+      typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail) && detail[0]?.msg
+          ? detail.map((d) => d.msg).join('; ')
+          : `API error ${res.status}`;
+    throw new Error(msg);
+  }
   return data;
 }
 
