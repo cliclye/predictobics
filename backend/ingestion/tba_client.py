@@ -73,3 +73,19 @@ async def get_match(match_key: str) -> dict | None:
 
 async def get_event_rankings(event_key: str) -> dict | None:
     return await tba_get(f"/event/{event_key}/rankings")
+
+
+async def get_districts_for_year(year: int) -> list[dict]:
+    return await tba_get(f"/districts/{year}") or []
+
+
+async def get_district_rankings(district_key: str, year: int) -> dict | None:
+    return await tba_get(f"/district/{district_key}/rankings/{year}")
+
+
+async def get_district_events_list(district_key: str, year: int) -> list[dict]:
+    return await tba_get(f"/district/{district_key}/events/{year}") or []
+
+
+async def get_event_awards(event_key: str) -> list[dict]:
+    return await tba_get(f"/event/{event_key}/awards") or []

@@ -69,4 +69,7 @@ export const api = {
   ingest: (year) => postJSON(`/ingest/${year}`),
   compute: (eventKey) => postJSON(`/compute/${eventKey}`),
   train: (year) => postJSON(`/train/${year}`),
+  getDistrictsForLocks: (year) => fetchJSON(`/district_locks/districts/${year}`),
+  getDistrictLocks: (districtKey, year) =>
+    fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}`),
 };

@@ -1,0 +1,224 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../api';
+import './LocksPage.css';
+
+function statusLabel(s) {
+  const map = {
+    completed: 'Completed',
+    qualifications: 'Qualifications',
+    pre_event: 'Pre-Event',
+    in_progress: 'In progress',
+  };
+  return map[s] || s;
+}
+
+function rowClass(st) {
+  if (st === 'clinched') return 'lock-row clinched';
+  if (st === 'in_range') return 'lock-row in-range';
+  if (st === 'bubble') return 'lock-row bubble';
+  return 'lock-row out';
+}
+
+export default function LocksPage() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [districts, setDistricts] = useState([]);
+  const [districtKey, setDistrictKey] = useState('');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(true);
+  const [error, setError] = useState(null);
+
+  const years = [];
+  for (let y = new Date().getFullYear() + 1; y >= 2002; y--) years.push(y);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingDistricts(true);
+      try {
+        const d = await api.getDistrictsForLocks(year);
+        if (!cancelled) {
+          setDistricts(d);
+          if (d.length) {
+            setDistrictKey((prev) => {
+              if (prev && d.some((x) => x.key === prev)) return prev;
+              const pnw = d.find((x) => (x.abbrev || '').toLowerCase() === 'pnw');
+              return (pnw || d[0]).key;
+            });
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setDistricts([]);
+      }
+      setLoadingDistricts(false);
+    })();
+    return () => { cancelled = true; };
+  }, [year]);
+
+  const loadLocks = useCallback(async () => {
+    if (!districtKey) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getDistrictLocks(districtKey, year);
+      setData(res);
+    } catch (e) {
+      setError(e.message);
+      setData(null);
+    }
+    setLoading(false);
+  }, [districtKey, year]);
+
+  useEffect(() => {
+    if (districtKey) loadLocks();
+  }, [districtKey, year, loadLocks]);
+
+  return (
+    <div className="locks-page">
+      <div className="locks-hero">
+        <h1 className="page-title">District Championship Locks</h1>
+        <p className="page-subtitle">
+          DCMP qualification estimates from district points (The Blue Alliance). Separate from EPA predictions.
+        </p>
+      </div>
+
+      <div className="locks-controls card">
+        <div className="locks-control-row">
+          <label>
+            Season
+            <select value={year} onChange={(e) => { setYear(Number(e.target.value)); setDistrictKey(''); }}>
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            District
+            <select
+              value={districtKey}
+              onChange={(e) => setDistrictKey(e.target.value)}
+              disabled={loadingDistricts || !districts.length}
+            >
+              {!districts.length && <option value="">Loading…</option>}
+              {districts.map((d) => (
+                <option key={d.key} value={d.key}>{d.name || d.key}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn btn-secondary" onClick={loadLocks} disabled={loading}>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="error-msg">{error}</div>}
+      {loading && <div className="loading">Loading district data…</div>}
+
+      {data && !loading && (
+        <>
+          <div className="card locks-summary">
+            <h2 className="card-header">{data.district_key}</h2>
+            <div className="locks-summary-grid">
+              <div>
+                <span className="lbl">DCMP spots (est.)</span>
+                <span className="val">{data.dcmp_spots}</span>
+              </div>
+              <div>
+                <span className="lbl">Impact Award teams (district events)</span>
+                <span className="val">{data.impact_award_count}</span>
+              </div>
+              <div>
+                <span className="lbl">Points remaining (rough hint)</span>
+                <span className="val">{data.estimated_points_remaining_hint}</span>
+              </div>
+            </div>
+            <p className="locks-disclaimer">{data.disclaimer}</p>
+          </div>
+
+          <div className="card">
+            <div className="card-header">District events</div>
+            <div className="table-wrapper">
+              <table className="locks-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Teams</th>
+                    <th>Impact at event</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.events.map((ev) => (
+                    <tr key={ev.event_key} className={`ev-status-${ev.status}`}>
+                      <td>
+                        <Link to={`/event/${ev.event_key}`}>{ev.name}</Link>
+                        <span className="ev-key">{ev.event_key}</span>
+                      </td>
+                      <td>{statusLabel(ev.status)}</td>
+                      <td>{ev.team_count || '—'}</td>
+                      <td>
+                        {ev.impact_winners?.length
+                          ? ev.impact_winners.map((t) => t.replace('frc', '')).join(', ')
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">Rankings &amp; DCMP lock %</div>
+            <div className="locks-legend">
+              <span><span className="lg clinched" /> Clinched / near lock</span>
+              <span><span className="lg in-range" /> In range</span>
+              <span><span className="lg bubble" /> Bubble</span>
+              <span><span className="lg out" /> Out</span>
+            </div>
+            <div className="table-wrapper">
+              <table className="locks-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Team</th>
+                    <th>District pts</th>
+                    <th>DCMP lock %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.teams.map((t) => (
+                    <tr key={t.team_key} className={rowClass(t.status)}>
+                      <td>{t.rank}</td>
+                      <td>
+                        <Link to={`/team/${t.team_key}`} className="team-link">
+                          <span className="team-num">{t.team_number}</span>
+                        </Link>
+                      </td>
+                      <td>{t.point_total.toFixed(1)}</td>
+                      <td>
+                        <strong>{(t.lock_probability * 100).toFixed(1)}%</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {data.impact_award_teams?.length > 0 && (
+            <div className="card locks-impact-list">
+              <div className="card-header">Impact Award winners (tracked)</div>
+              <p className="impact-tags">
+                {data.impact_award_teams.map((tk) => (
+                  <Link key={tk} to={`/team/${tk}`} className="impact-tag">{tk.replace('frc', '')}</Link>
+                ))}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

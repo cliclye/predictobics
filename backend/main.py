@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from backend.database import init_db
 from backend.api.routes import router
+from backend.api.district_locks_router import router as district_locks_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,6 +73,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(district_locks_router, prefix="/api")
 
 # Serve React frontend in production
 frontend_build = Path(__file__).parent.parent / "frontend" / "build"

@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage';
 import TeamPage from './pages/TeamPage';
 import EventPage from './pages/EventPage';
 import PredictPage from './pages/PredictPage';
+import LocksPage from './pages/LocksPage';
 import './App.css';
 
 function App() {
@@ -23,6 +24,9 @@ function App() {
           <Link to="/predict" className={location.pathname === '/predict' ? 'active' : ''}>
             Predict
           </Link>
+          <Link to="/locks" className={location.pathname === '/locks' ? 'active' : ''}>
+            Locks
+          </Link>
         </div>
       </nav>
       <main className="main-content">
@@ -31,6 +35,7 @@ function App() {
           <Route path="/team/:teamKey" element={<TeamPage />} />
           <Route path="/event/:eventKey" element={<EventPage />} />
           <Route path="/predict" element={<PredictPage />} />
+          <Route path="/locks" element={<LocksPage />} />
         </Routes>
       </main>
       <footer className="footer">

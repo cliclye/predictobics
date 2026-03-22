@@ -86,8 +86,10 @@ backend/
     compute.py       — DB-to-metrics orchestrator
     predictor.py     — Match prediction + Monte Carlo simulation
     evaluation.py    — Walk-forward backtests vs TBA (Brier, Spearman rank)
+    district_locks.py — DCMP lock Monte Carlo (separate from EPA)
   api/
     routes.py        — FastAPI endpoints
+    district_locks_router.py — DCMP locks API (TBA district data)
     schemas.py       — Pydantic response models
 frontend/
   src/
@@ -109,6 +111,8 @@ frontend/
 | GET | `/api/simulate/{event_key}` | Monte Carlo event simulation |
 | POST | `/api/ingest/{year}` | Trigger data ingestion |
 | POST | `/api/ingest/bulk` | Queue multi-year archive ingest (optional `X-Bulk-Ingest-Secret`) |
+| GET | `/api/district_locks/districts/{year}` | List districts for DCMP locks UI |
+| GET | `/api/district_locks/{district_key}/{year}` | District events, Impact, lock % |
 | POST | `/api/compute/{event_key}` | Compute metrics for event |
 | POST | `/api/train/{year}` | Train ML prediction model |
 | GET | `/api/evaluation/year/{year}?max_events=40` | Backtest: match Brier/log-loss + EPA vs TBA rank correlation |
