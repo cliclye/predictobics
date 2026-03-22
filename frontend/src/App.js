@@ -39,7 +39,24 @@ function App() {
         </Routes>
       </main>
       <footer className="footer">
-        <p>Powered by <a href="https://www.thebluealliance.com" target="_blank" rel="noreferrer">The Blue Alliance</a></p>
+        <p className="footer-line">
+          Developed by{' '}
+          <a href="https://www.thebluealliance.com/team/1294" target="_blank" rel="noreferrer">
+            FRC Team 1294
+          </a>
+          <span className="footer-sep" aria-hidden="true">
+            ·
+          </span>
+          <a href="https://github.com/cliclye/predictobics" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </p>
+        <p className="footer-line">
+          Powered by{' '}
+          <a href="https://www.thebluealliance.com" target="_blank" rel="noreferrer">
+            The Blue Alliance
+          </a>
+        </p>
       </footer>
     </div>
   );
