@@ -1,5 +1,10 @@
 const BASE = process.env.REACT_APP_API_URL || '/api';
 
+/** Set only for trusted private builds; value is visible in the client bundle. */
+const ADMIN_CLIENT_SECRET = (process.env.REACT_APP_ADMIN_API_SECRET || '').trim();
+
+export const clientCanSendWriteSecret = Boolean(ADMIN_CLIENT_SECRET);
+
 async function fetchJSON(path) {
   let res;
   try {
@@ -26,13 +31,18 @@ async function fetchJSON(path) {
   return data;
 }
 
-async function postJSON(path, body) {
+async function postJSON(path, body, { admin } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (admin && ADMIN_CLIENT_SECRET) {
+    headers['X-Admin-Secret'] = ADMIN_CLIENT_SECRET;
+  }
+
   let res;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
     throw new Error('Cannot reach the API server. Is the backend running?');
@@ -56,6 +66,18 @@ async function postJSON(path, body) {
   return data;
 }
 
+/**
+ * Whether the API requires a shared secret for ingest / compute / train / bulk.
+ * Older APIs without this route are treated as not requiring a secret.
+ */
+export async function fetchServerInfo() {
+  try {
+    return await fetchJSON('/server-info');
+  } catch {
+    return { write_secret_required: false };
+  }
+}
+
 export const api = {
   getTeam: (key, year) => fetchJSON(`/team/${key}${year ? `?year=${year}` : ''}`),
   searchTeams: (query, page = 0) => fetchJSON(`/teams?search=${encodeURIComponent(query)}&page=${page}&size=20`),
@@ -66,9 +88,9 @@ export const api = {
   predictMatch: (body) => postJSON('/match_prediction', body),
   simulate: (eventKey, n = 500) => fetchJSON(`/simulate/${eventKey}?n=${n}`),
   getEventPrediction: (eventKey) => fetchJSON(`/event_prediction/${eventKey}`),
-  ingest: (year) => postJSON(`/ingest/${year}`),
-  compute: (eventKey) => postJSON(`/compute/${eventKey}`),
-  train: (year) => postJSON(`/train/${year}`),
+  ingest: (year) => postJSON(`/ingest/${year}`, undefined, { admin: true }),
+  compute: (eventKey) => postJSON(`/compute/${eventKey}`, undefined, { admin: true }),
+  train: (year) => postJSON(`/train/${year}`, undefined, { admin: true }),
   getDistrictsForLocks: (year) => fetchJSON(`/district_locks/districts/${year}`),
   getDistrictLocks: (districtKey, year) =>
     fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}`),

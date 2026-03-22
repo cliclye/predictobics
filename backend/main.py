@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 from backend.database import init_db
 from backend.api.routes import router
 from backend.api.district_locks_router import router as district_locks_router
+from backend.config import get_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL = 120
+
+
+def _cors_allow_origins() -> list[str]:
+    raw = (get_settings().cors_origins or "").strip()
+    if not raw or raw == "*":
+        return ["*"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
 
 
 async def _auto_refresh_loop():
@@ -64,10 +72,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_origins = _cors_allow_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_origins,
+    # Wildcard origin is incompatible with credentialed cross-origin requests in browsers.
+    allow_credentials=False if "*" in _origins else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

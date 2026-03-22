@@ -165,3 +165,9 @@ class BulkIngestQueued(BaseModel):
     message: str
     start_year: int
     end_year: int
+
+
+class ServerInfoResponse(BaseModel):
+    """Public deployment hints for the SPA (no secrets)."""
+
+    write_secret_required: bool = False

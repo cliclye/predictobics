@@ -70,7 +70,9 @@ Copy `.env.example` to `.env`. Common variables:
 | `TBA_API_KEY` | **Required** for ingestion and live TBA calls |
 | `DATABASE_URL` | Async SQLAlchemy URL (e.g. `postgresql+asyncpg://...`) |
 | `DATABASE_URL_SYNC` | Optional sync URL if you add sync tooling |
-| `BULK_INGEST_SECRET` | If set, `POST /api/ingest/bulk` requires header `X-Bulk-Ingest-Secret` |
+| `ADMIN_API_SECRET` | If set, all write POSTs (`/ingest/*`, `/compute/*`, `/train/*`) require `X-Admin-Secret` (or `X-Bulk-Ingest-Secret` with the same value) |
+| `BULK_INGEST_SECRET` | Legacy: if `ADMIN_API_SECRET` is empty, same protection as `ADMIN_API_SECRET` for every write route |
+| `CORS_ORIGINS` | Optional comma-separated browser origins; default `*` |
 
 Optional tuning (see `backend/config.py`): `PREDICTION_PROB_SHRINK`, `PREDICTION_Z_TEMPERATURE`, `PREDICTION_ML_BLEND_WEIGHT`, `PREDICTION_DEFENSE_BLEND`, and EPA-related `EPA_*` settings.
 

@@ -20,6 +20,7 @@ from backend.api.schemas import (
     MatchPredictionResponse, SimulationTeamResult, IngestionStatus,
     MatchResponse, EventPredictionResponse, PredictedRankEntry,
     PredictedAlliance, PlayoffMatch, BulkIngestRequest, BulkIngestQueued,
+    ServerInfoResponse,
 )
 from backend.metrics.predictor import (
     predict_match,
@@ -34,6 +35,34 @@ from backend.metrics.compute import compute_event_metrics, compute_year_metrics
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _effective_write_secret() -> str:
+    s = get_settings()
+    return (s.admin_api_secret or s.bulk_ingest_secret or "").strip()
+
+
+def _assert_write_authorized(
+    x_admin_secret: Optional[str],
+    x_bulk_ingest_secret: Optional[str],
+) -> None:
+    secret = _effective_write_secret()
+    if not secret:
+        return
+    a = (x_admin_secret or "").strip()
+    b = (x_bulk_ingest_secret or "").strip()
+    if a == secret or b == secret:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail="Invalid or missing X-Admin-Secret (or X-Bulk-Ingest-Secret with the same value).",
+    )
+
+
+@router.get("/server-info", response_model=ServerInfoResponse)
+async def server_info():
+    """Tells the SPA whether write operations need a secret (without revealing it)."""
+    return ServerInfoResponse(write_secret_required=bool(_effective_write_secret()))
 
 
 async def _qual_match_records(db: AsyncSession, event_key: str) -> dict[str, dict[str, int]]:
@@ -607,7 +636,13 @@ async def evaluate_year_endpoint(
 # ──────────────────────────── Admin / Ingestion ────────────────────────────
 
 @router.post("/ingest/{year}", response_model=IngestionStatus)
-async def trigger_ingestion(year: int, background_tasks: BackgroundTasks):
+async def trigger_ingestion(
+    year: int,
+    background_tasks: BackgroundTasks,
+    x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret"),
+    x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
+):
+    _assert_write_authorized(x_admin_secret, x_bulk_ingest_secret)
     background_tasks.add_task(_run_ingestion, year)
     return IngestionStatus(status="started", message=f"Ingestion for {year} started in background")
 
@@ -616,20 +651,18 @@ async def trigger_ingestion(year: int, background_tasks: BackgroundTasks):
 async def trigger_bulk_ingestion(
     body: BulkIngestRequest,
     background_tasks: BackgroundTasks,
+    x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret"),
     x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
 ):
     """
     Pre-pull many years of events + matches + EPA (historical archive).
 
-    Runs in the background; may take hours for large ranges. Set
-    `BULK_INGEST_SECRET` in the API environment and send the same value in
-    header `X-Bulk-Ingest-Secret`. If the secret is unset, the endpoint is open
-    (dev only — protect your API in production).
+    Runs in the background; may take hours for large ranges. When
+    `ADMIN_API_SECRET` or `BULK_INGEST_SECRET` is set in the API environment,
+    send the same value in `X-Admin-Secret` or `X-Bulk-Ingest-Secret`.
+    If neither is set, the endpoint is open (local dev only).
     """
-    settings = get_settings()
-    secret = (settings.bulk_ingest_secret or "").strip()
-    if secret and (x_bulk_ingest_secret or "").strip() != secret:
-        raise HTTPException(403, "Invalid or missing X-Bulk-Ingest-Secret")
+    _assert_write_authorized(x_admin_secret, x_bulk_ingest_secret)
 
     async def _bulk_job():
         await bulk_ingest_years(
@@ -652,13 +685,25 @@ async def trigger_bulk_ingestion(
 
 
 @router.post("/compute/{event_key}", response_model=IngestionStatus)
-async def trigger_compute(event_key: str, background_tasks: BackgroundTasks):
+async def trigger_compute(
+    event_key: str,
+    background_tasks: BackgroundTasks,
+    x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret"),
+    x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
+):
+    _assert_write_authorized(x_admin_secret, x_bulk_ingest_secret)
     background_tasks.add_task(compute_event_metrics, event_key)
     return IngestionStatus(status="started", message=f"Compute for {event_key} started")
 
 
 @router.post("/train/{year}", response_model=IngestionStatus)
-async def trigger_training(year: int, background_tasks: BackgroundTasks):
+async def trigger_training(
+    year: int,
+    background_tasks: BackgroundTasks,
+    x_admin_secret: Optional[str] = Header(None, alias="X-Admin-Secret"),
+    x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
+):
+    _assert_write_authorized(x_admin_secret, x_bulk_ingest_secret)
     background_tasks.add_task(train_model, year)
     return IngestionStatus(status="started", message=f"Model training for {year} started")
 

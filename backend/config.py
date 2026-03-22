@@ -25,6 +25,13 @@ class Settings(BaseSettings):
 
     # Optional: require this value in X-Bulk-Ingest-Secret header for POST /ingest/bulk
     bulk_ingest_secret: str = ""
+    # Optional: if set (or if bulk_ingest_secret is set), all write/admin POSTs require
+    # X-Admin-Secret or X-Bulk-Ingest-Secret matching that shared secret.
+    admin_api_secret: str = ""
+
+    # Comma-separated allowed browser origins, or "*" for any (default). Prefer
+    # listing your Vercel + custom domains in production.
+    cors_origins: str = "*"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

@@ -12,7 +12,7 @@ Thanks for your interest in Predictobics.
 
 - Keep changes focused; open an issue first for large features.
 - Match existing style (formatting, naming).
-- Do not commit secrets, API keys, or production database URLs.
+- Do not commit secrets, API keys, or production database URLs. For hosted APIs, set `ADMIN_API_SECRET` (or `BULK_INGEST_SECRET`) and list your frontend origin in `CORS_ORIGINS` (see `SECURITY.md`).
 
 ## Data and attribution
 

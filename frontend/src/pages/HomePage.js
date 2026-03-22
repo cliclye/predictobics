@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, fetchServerInfo, clientCanSendWriteSecret } from '../api';
 import './HomePage.css';
 
 function HomePage() {
@@ -13,7 +13,12 @@ function HomePage() {
   const [searching, setSearching] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [ingestMsg, setIngestMsg] = useState(null);
+  const [serverWriteSecret, setServerWriteSecret] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchServerInfo().then((s) => setServerWriteSecret(!!s.write_secret_required));
+  }, []);
 
   useEffect(() => {
     loadEvents();
@@ -140,6 +145,13 @@ function HomePage() {
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No event data for {year}.</p>
             {ingestMsg ? (
               <p style={{ color: 'var(--accent)', fontSize: '0.875rem' }}>{ingestMsg}</p>
+            ) : serverWriteSecret === null ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading…</p>
+            ) : serverWriteSecret && !clientCanSendWriteSecret ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '28rem', margin: '0 auto' }}>
+                Ingestion from this site is turned off for this server. Use a private admin client or curl with
+                X-Admin-Secret, or run without a write secret in development.
+              </p>
             ) : (
               <button
                 className="btn btn-primary"
