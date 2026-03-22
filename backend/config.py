@@ -17,9 +17,11 @@ class Settings(BaseSettings):
     epa_blowout_ratio: float = 3.0
 
     # Match win-probability calibration (tuned vs walk-forward backtests; env override)
-    prediction_prob_shrink: float = 0.88
-    prediction_z_temperature: float = 1.06
-    prediction_ml_blend_weight: float = 0.28
+    prediction_prob_shrink: float = 0.92
+    prediction_z_temperature: float = 1.04
+    prediction_ml_blend_weight: float = 0.42
+    # Blend defense-adjusted EPA into the Gaussian mean (0 = off)
+    prediction_defense_blend: float = 0.18
 
     # Optional: require this value in X-Bulk-Ingest-Secret header for POST /ingest/bulk
     bulk_ingest_secret: str = ""

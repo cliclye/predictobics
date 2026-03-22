@@ -59,6 +59,79 @@ class AllianceFeatures:
     effective_epa: float = 0.0
     max_epa: float = 0.0
     min_epa: float = 0.0
+    # Sum of per-team defense-adjusted EPA (from compute_epa); used for mean blend
+    defense_adjusted_epa: float = 0.0
+
+
+def build_alliance_features_from_metrics(
+    team_keys: list[str],
+    metrics: dict,
+) -> AllianceFeatures:
+    """
+    Build alliance features from a team_key -> TeamEventMetrics map (same math as DB path).
+    Per-team effective EPA = sum_i (epa_i * consistency_i * reliability_i), not
+    (sum epa) * avg(c) * avg(r), which better separates carry vs inconsistent partners.
+    """
+    epas = []
+    autos = []
+    teleops = []
+    endgames = []
+    consistencies = []
+    reliabilities = []
+    soss = []
+    variances = []
+    effective_terms = []
+    defense_terms = []
+
+    for tk in team_keys:
+        m = metrics.get(tk)
+        if m:
+            e = m.epa_total or 0
+            c = m.consistency if m.consistency is not None else 0.5
+            r = m.reliability if m.reliability is not None else 1.0
+            epas.append(e)
+            autos.append(m.epa_auto or 0)
+            teleops.append(m.epa_teleop or 0)
+            endgames.append(m.epa_endgame or 0)
+            consistencies.append(c)
+            reliabilities.append(r)
+            soss.append(m.strength_of_schedule or 0)
+            variances.append(m.score_variance or 0)
+            effective_terms.append(e * c * r)
+            da = getattr(m, "epa_defense_adjusted", None)
+            defense_terms.append(float(da) if da is not None else e)
+        else:
+            epas.append(0)
+            autos.append(0)
+            teleops.append(0)
+            endgames.append(0)
+            consistencies.append(0.5)
+            reliabilities.append(1.0)
+            soss.append(0)
+            variances.append(100.0)
+            effective_terms.append(0.0)
+            defense_terms.append(0.0)
+
+    raw_sum = sum(epas)
+    avg_c = float(np.mean(consistencies))
+    avg_r = float(np.mean(reliabilities))
+    effective_epa = float(sum(effective_terms))
+
+    return AllianceFeatures(
+        total_epa=raw_sum,
+        auto_epa=sum(autos),
+        teleop_epa=sum(teleops),
+        endgame_epa=sum(endgames),
+        avg_consistency=avg_c,
+        avg_reliability=avg_r,
+        avg_sos=float(np.mean(soss)),
+        epa_stdev=float(np.std(epas)) if epas else 0.0,
+        total_variance=sum(variances),
+        effective_epa=effective_epa,
+        max_epa=max(epas) if epas else 0,
+        min_epa=min(epas) if epas else 0,
+        defense_adjusted_epa=float(sum(defense_terms)),
+    )
 
 
 def _calibrate_win_prob(p: float) -> float:
@@ -66,6 +139,16 @@ def _calibrate_win_prob(p: float) -> float:
     s = get_settings().prediction_prob_shrink
     p = 0.5 + (p - 0.5) * s
     return float(np.clip(p, 0.02, 0.98))
+
+
+def _blended_match_mean(alliance: AllianceFeatures) -> float:
+    """Gaussian mean for alliance score expectation used in win-probability z-score."""
+    mu_eff = alliance.effective_epa if alliance.effective_epa > 0 else alliance.total_epa
+    md = alliance.defense_adjusted_epa
+    w = float(get_settings().prediction_defense_blend)
+    if md > 0 and w > 0:
+        return float((1.0 - w) * mu_eff + w * md)
+    return float(mu_eff)
 
 
 def predict_match(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
@@ -94,8 +177,8 @@ def predict_match(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionRe
 
 
 def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
-    mu_r = red.effective_epa if red.effective_epa > 0 else red.total_epa
-    mu_b = blue.effective_epa if blue.effective_epa > 0 else blue.total_epa
+    mu_r = _blended_match_mean(red)
+    mu_b = _blended_match_mean(blue)
 
     sigma2_r = red.total_variance + DEFAULT_NOISE_VARIANCE
     sigma2_b = blue.total_variance + DEFAULT_NOISE_VARIANCE
@@ -114,11 +197,15 @@ def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> Predic
     red_win_prob = float(stats.norm.cdf(z))
     red_win_prob = np.clip(red_win_prob, 0.01, 0.99)
 
+    # Expected alliance totals match the same means as the win-probability model
+    exp_r = _blended_match_mean(red)
+    exp_b = _blended_match_mean(blue)
+
     return PredictionResult(
         red_win_prob=float(red_win_prob),
         blue_win_prob=float(1.0 - red_win_prob),
-        red_expected_score=float(red.total_epa),
-        blue_expected_score=float(blue.total_epa),
+        red_expected_score=exp_r,
+        blue_expected_score=exp_b,
         model_used="analytical",
     )
 
@@ -133,11 +220,14 @@ def _predict_ml(model, red: AllianceFeatures, blue: AllianceFeatures) -> Predict
     except Exception:
         return _predict_analytical(red, blue)
 
+    exp_r = _blended_match_mean(red)
+    exp_b = _blended_match_mean(blue)
+
     return PredictionResult(
         red_win_prob=red_win_prob,
         blue_win_prob=1.0 - red_win_prob,
-        red_expected_score=float(red.total_epa),
-        blue_expected_score=float(blue.total_epa),
+        red_expected_score=exp_r,
+        blue_expected_score=exp_b,
         model_used="ml_ensemble",
     )
 
@@ -325,6 +415,19 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
     avg_c = float(np.mean(consistencies))
     avg_r = float(np.mean(reliabilities))
 
+    eff_terms = []
+    def_terms = []
+    for tk in team_keys:
+        m = metrics.get((tk, event_key))
+        if m is None:
+            continue
+        e = m.epa_total or 0
+        c = m.consistency if m.consistency is not None else 0.5
+        r = m.reliability if m.reliability is not None else 1.0
+        eff_terms.append(e * c * r)
+        da = getattr(m, "epa_defense_adjusted", None)
+        def_terms.append(float(da) if da is not None else e)
+
     return AllianceFeatures(
         total_epa=raw_sum,
         auto_epa=sum(autos),
@@ -335,9 +438,10 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
         avg_sos=float(np.mean(soss)),
         epa_stdev=float(np.std(epas)),
         total_variance=sum(variances),
-        effective_epa=raw_sum * avg_c * avg_r,
+        effective_epa=float(sum(eff_terms)) if eff_terms else raw_sum * avg_c * avg_r,
         max_epa=max(epas),
         min_epa=min(epas),
+        defense_adjusted_epa=float(sum(def_terms)) if def_terms else 0.0,
     )
 
 

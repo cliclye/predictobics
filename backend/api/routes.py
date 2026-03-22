@@ -22,7 +22,11 @@ from backend.api.schemas import (
     PredictedAlliance, PlayoffMatch, BulkIngestRequest, BulkIngestQueued,
 )
 from backend.metrics.predictor import (
-    predict_match, AllianceFeatures, simulate_event, train_model,
+    predict_match,
+    AllianceFeatures,
+    simulate_event,
+    train_model,
+    build_alliance_features_from_metrics,
 )
 from backend.config import get_settings
 from backend.ingestion.pipeline import ingest_year, ingest_event_matches, bulk_ingest_years
@@ -270,42 +274,23 @@ async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
     )
     metrics = {m.team_key: m for m in metrics_result.scalars().all()}
 
-    from scipy import stats as sp_stats
-
-    MATCH_NOISE = 80.0
-
-    def _alliance_stats(team_keys: list[str]):
-        epa = 0.0
-        eff = 0.0
-        var = 0.0
-        for tk in team_keys:
-            met = metrics.get(tk)
-            if not met:
-                continue
-            e = met.epa_total or 0
-            c = met.consistency or 0.5
-            r = met.reliability or 1.0
-            epa += e
-            eff += e * c * r
-            var += met.score_variance or 0
-        return epa, eff, var
-
     results = []
     for m in matches:
         sides = alliance_map.get(m.key, {})
         red_teams = sides.get("red", [])
         blue_teams = sides.get("blue", [])
 
-        red_epa, red_eff, red_var = _alliance_stats(red_teams)
-        blue_epa, blue_eff, blue_var = _alliance_stats(blue_teams)
+        red_feat = build_alliance_features_from_metrics(red_teams, metrics)
+        blue_feat = build_alliance_features_from_metrics(blue_teams, metrics)
 
         red_win_prob = None
-        if red_epa or blue_epa:
-            combined_sigma = np.sqrt(red_var + blue_var + 2 * MATCH_NOISE)
-            if combined_sigma < 1e-6:
-                combined_sigma = 12.0
-            z = (red_eff - blue_eff) / combined_sigma
-            red_win_prob = float(np.clip(sp_stats.norm.cdf(z), 0.01, 0.99))
+        red_pred = None
+        blue_pred = None
+        if red_feat.total_epa or blue_feat.total_epa:
+            pred = predict_match(red_feat, blue_feat)
+            red_win_prob = pred.red_win_prob
+            red_pred = round(pred.red_expected_score, 1)
+            blue_pred = round(pred.blue_expected_score, 1)
 
         results.append(MatchResponse(
             key=m.key,
@@ -318,8 +303,8 @@ async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
             winning_alliance=m.winning_alliance,
             red_teams=red_teams,
             blue_teams=blue_teams,
-            red_predicted_score=round(red_epa, 1) if red_epa else None,
-            blue_predicted_score=round(blue_epa, 1) if blue_epa else None,
+            red_predicted_score=red_pred,
+            blue_predicted_score=blue_pred,
             red_win_prob=red_win_prob,
         ))
 
@@ -688,56 +673,12 @@ async def _run_ingestion(year: int):
 async def _build_alliance_features(
     team_keys: list[str], event_key: str, db: AsyncSession
 ) -> AllianceFeatures:
-    epas = []
-    autos = []
-    teleops = []
-    endgames = []
-    consistencies = []
-    reliabilities = []
-    soss = []
-    variances = []
-
+    metrics: dict = {}
     for tk in team_keys:
         result = await db.execute(
             select(TeamEventMetrics)
             .where(TeamEventMetrics.team_key == tk)
             .where(TeamEventMetrics.event_key == event_key)
         )
-        m = result.scalar_one_or_none()
-        if m:
-            epas.append(m.epa_total or 0)
-            autos.append(m.epa_auto or 0)
-            teleops.append(m.epa_teleop or 0)
-            endgames.append(m.epa_endgame or 0)
-            consistencies.append(m.consistency or 0)
-            reliabilities.append(m.reliability or 1)
-            soss.append(m.strength_of_schedule or 0)
-            variances.append(m.score_variance or 0)
-        else:
-            epas.append(0)
-            autos.append(0)
-            teleops.append(0)
-            endgames.append(0)
-            consistencies.append(0.5)
-            reliabilities.append(1.0)
-            soss.append(0)
-            variances.append(100.0)
-
-    raw_sum = sum(epas)
-    avg_c = float(np.mean(consistencies))
-    avg_r = float(np.mean(reliabilities))
-
-    return AllianceFeatures(
-        total_epa=raw_sum,
-        auto_epa=sum(autos),
-        teleop_epa=sum(teleops),
-        endgame_epa=sum(endgames),
-        avg_consistency=avg_c,
-        avg_reliability=avg_r,
-        avg_sos=float(np.mean(soss)),
-        epa_stdev=float(np.std(epas)),
-        total_variance=sum(variances),
-        effective_epa=raw_sum * avg_c * avg_r,
-        max_epa=max(epas) if epas else 0,
-        min_epa=min(epas) if epas else 0,
-    )
+        metrics[tk] = result.scalar_one_or_none()
+    return build_alliance_features_from_metrics(team_keys, metrics)
