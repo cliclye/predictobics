@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
@@ -147,3 +147,21 @@ class EventPredictionResponse(BaseModel):
 class IngestionStatus(BaseModel):
     status: str
     message: str
+
+
+class BulkIngestRequest(BaseModel):
+    """Pre-pull many seasons (events + matches + EPA). Can run a long time."""
+
+    start_year: int = 2002
+    end_year: int = Field(default_factory=lambda: datetime.now().year)
+    refresh_teams_first: bool = True
+    compute_metrics: bool = True
+    newest_first: bool = False
+    pause_between_years_sec: float = 1.0
+
+
+class BulkIngestQueued(BaseModel):
+    status: str = "started"
+    message: str
+    start_year: int
+    end_year: int

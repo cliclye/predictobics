@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     prediction_z_temperature: float = 1.06
     prediction_ml_blend_weight: float = 0.28
 
+    # Optional: require this value in X-Bulk-Ingest-Secret header for POST /ingest/bulk
+    bulk_ingest_secret: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     def get_async_db_url(self) -> str:

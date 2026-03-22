@@ -10,6 +10,7 @@ Score breakdown parsing:
   This makes the pipeline resilient across game changes.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from sqlalchemy import select, text
@@ -193,10 +194,12 @@ async def ingest_event_matches(event_key: str):
         logger.info(f"Ingested {len(matches_data)} matches for {event_key}")
 
 
-async def ingest_year(year: int):
-    """Full pipeline: teams, events, and all matches for a given year."""
-    logger.info(f"Starting full ingestion for {year}")
-    await ingest_teams()
+async def ingest_season(year: int):
+    """
+    Ingest all events + matches for one season without refreshing the global team list.
+    Use this inside bulk jobs; call ingest_teams() once before many ingest_season() calls.
+    """
+    logger.info(f"Ingesting season {year} (events + matches)")
     await ingest_events(year)
 
     async with async_session() as session:
@@ -213,6 +216,86 @@ async def ingest_year(year: int):
             logger.error(f"  Failed {ek}: {e}")
 
     logger.info(f"Ingestion complete for {year}: {len(event_keys)} events")
+
+
+async def ingest_year(year: int):
+    """Full pipeline: teams, events, and all matches for a given year."""
+    logger.info(f"Starting full ingestion for {year}")
+    await ingest_teams()
+    await ingest_season(year)
+
+
+async def bulk_ingest_years(
+    start_year: int,
+    end_year: int,
+    *,
+    refresh_teams_first: bool = True,
+    compute_metrics: bool = True,
+    newest_first: bool = False,
+    pause_between_years_sec: float = 1.0,
+) -> dict:
+    """
+    Pre-fill the database for many seasons (historical archive).
+
+    - Optionally refreshes the global team list once (recommended for first bulk run).
+    - Processes each year: events → all event matches → optional EPA compute for that year.
+    - Pauses briefly between years to stay polite to TBA.
+
+    Returns a summary dict with per-year status.
+    """
+    from backend.metrics.compute import compute_year_metrics
+
+    cy = datetime.utcnow().year
+    start_year = max(2002, min(start_year, cy + 1))
+    end_year = max(2002, min(end_year, cy + 1))
+    if start_year > end_year:
+        start_year, end_year = end_year, start_year
+
+    years = list(range(start_year, end_year + 1))
+    if newest_first:
+        years.reverse()
+
+    if refresh_teams_first:
+        logger.info("Bulk ingest: refreshing global team list from TBA (one pass)")
+        await ingest_teams()
+
+    results: list[dict] = []
+
+    for y in years:
+        row = {"year": y, "ingest": "ok", "compute": "skipped"}
+        try:
+            await ingest_season(y)
+        except Exception as e:
+            logger.exception("Bulk ingest failed for season %s: %s", y, e)
+            row["ingest"] = f"error: {e}"
+            results.append(row)
+            continue
+
+        if compute_metrics:
+            try:
+                await compute_year_metrics(y)
+                row["compute"] = "ok"
+            except Exception as e:
+                logger.exception("compute_year_metrics failed for %s: %s", y, e)
+                row["compute"] = f"error: {e}"
+
+        results.append(row)
+        if pause_between_years_sec > 0:
+            await asyncio.sleep(pause_between_years_sec)
+
+    logger.info(
+        "Bulk ingest finished: years %s–%s (%d seasons)",
+        min(start_year, end_year),
+        max(start_year, end_year),
+        len(years),
+    )
+    return {
+        "start_year": start_year,
+        "end_year": end_year,
+        "years_processed": years,
+        "refresh_teams_first": refresh_teams_first,
+        "results": results,
+    }
 
 
 async def refresh_active_events(year: int) -> list[str]:

@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 
 import numpy as np
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query, Header
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import get_db
@@ -19,12 +19,13 @@ from backend.api.schemas import (
     EventResponse, EventRankingEntry, MatchPredictionRequest,
     MatchPredictionResponse, SimulationTeamResult, IngestionStatus,
     MatchResponse, EventPredictionResponse, PredictedRankEntry,
-    PredictedAlliance, PlayoffMatch,
+    PredictedAlliance, PlayoffMatch, BulkIngestRequest, BulkIngestQueued,
 )
 from backend.metrics.predictor import (
     predict_match, AllianceFeatures, simulate_event, train_model,
 )
-from backend.ingestion.pipeline import ingest_year, ingest_event_matches
+from backend.config import get_settings
+from backend.ingestion.pipeline import ingest_year, ingest_event_matches, bulk_ingest_years
 from backend.metrics.compute import compute_event_metrics, compute_year_metrics
 
 logger = logging.getLogger(__name__)
@@ -624,6 +625,45 @@ async def evaluate_year_endpoint(
 async def trigger_ingestion(year: int, background_tasks: BackgroundTasks):
     background_tasks.add_task(_run_ingestion, year)
     return IngestionStatus(status="started", message=f"Ingestion for {year} started in background")
+
+
+@router.post("/ingest/bulk", response_model=BulkIngestQueued)
+async def trigger_bulk_ingestion(
+    body: BulkIngestRequest,
+    background_tasks: BackgroundTasks,
+    x_bulk_ingest_secret: Optional[str] = Header(None, alias="X-Bulk-Ingest-Secret"),
+):
+    """
+    Pre-pull many years of events + matches + EPA (historical archive).
+
+    Runs in the background; may take hours for large ranges. Set
+    `BULK_INGEST_SECRET` in the API environment and send the same value in
+    header `X-Bulk-Ingest-Secret`. If the secret is unset, the endpoint is open
+    (dev only — protect your API in production).
+    """
+    settings = get_settings()
+    secret = (settings.bulk_ingest_secret or "").strip()
+    if secret and (x_bulk_ingest_secret or "").strip() != secret:
+        raise HTTPException(403, "Invalid or missing X-Bulk-Ingest-Secret")
+
+    async def _bulk_job():
+        await bulk_ingest_years(
+            body.start_year,
+            body.end_year,
+            refresh_teams_first=body.refresh_teams_first,
+            compute_metrics=body.compute_metrics,
+            newest_first=body.newest_first,
+            pause_between_years_sec=body.pause_between_years_sec,
+        )
+
+    background_tasks.add_task(_bulk_job)
+    return BulkIngestQueued(
+        status="started",
+        message=f"Bulk ingest queued for {body.start_year}–{body.end_year}. "
+        "Progress is logged on the server; use scripts/bulk_ingest.py for a foreground run.",
+        start_year=body.start_year,
+        end_year=body.end_year,
+    )
 
 
 @router.post("/compute/{event_key}", response_model=IngestionStatus)

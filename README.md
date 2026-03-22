@@ -46,6 +46,29 @@ curl -X POST http://localhost:8000/api/ingest/2024
 curl -X POST http://localhost:8000/api/train/2024
 ```
 
+### Pre-fill historical data (all past seasons)
+
+To avoid empty pages for older events, run a **bulk ingest** once (can take hours; uses TBA rate limits politely):
+
+**Foreground (recommended for Railway / long jobs — logs in your terminal):**
+```bash
+cd /path/to/predictobics
+PYTHONPATH=. python scripts/bulk_ingest.py --start 2002 --end 2026
+```
+
+Options: `--newest-first` (2026→2002 so recent comps appear sooner), `--skip-teams` if teams are already loaded, `--no-compute` for matches-only without EPA.
+
+**Background (via API):**
+```bash
+curl -X POST http://localhost:8000/api/ingest/bulk \
+  -H "Content-Type: application/json" \
+  -d '{"start_year":2015,"end_year":2026,"newest_first":true}'
+```
+
+Set `BULK_INGEST_SECRET` in the API environment and send header `X-Bulk-Ingest-Secret: <same>` to protect this endpoint in production. If unset, the route is open (development only).
+
+After bulk ingest, run training once if you use the ML layer: `POST /api/train/2026` (or your latest year).
+
 ## Architecture
 
 ```
@@ -85,6 +108,7 @@ frontend/
 | POST | `/api/match_prediction` | Predict match outcome |
 | GET | `/api/simulate/{event_key}` | Monte Carlo event simulation |
 | POST | `/api/ingest/{year}` | Trigger data ingestion |
+| POST | `/api/ingest/bulk` | Queue multi-year archive ingest (optional `X-Bulk-Ingest-Secret`) |
 | POST | `/api/compute/{event_key}` | Compute metrics for event |
 | POST | `/api/train/{year}` | Train ML prediction model |
 | GET | `/api/evaluation/year/{year}?max_events=40` | Backtest: match Brier/log-loss + EPA vs TBA rank correlation |
