@@ -195,6 +195,21 @@ function EventPredictions({ pred }) {
 
   return (
     <div className="pred-container">
+      {(pred.ranking_method_note || pred.alliance_selection_note) && (
+        <div className="card pred-info-banner">
+          {pred.ranking_method_note && <p className="pred-info-line">{pred.ranking_method_note}</p>}
+          {pred.alliance_selection_note && (
+            <p className="pred-info-line">
+              <strong>Alliance selection:</strong> {pred.alliance_selection_note}
+              {pred.event_year ? (
+                <span className="pred-meta"> ({pred.event_year}
+                  {pred.alliance_skip_first_pick ? ', skip-first-pick applied' : ''})
+                </span>
+              ) : null}
+            </p>
+          )}
+        </div>
+      )}
       {/* Predicted Winner */}
       <div className="card pred-winner-card">
         <div className="card-header">Predicted Event Winner</div>
@@ -281,6 +296,7 @@ function EventPredictions({ pred }) {
                 <th>Team</th>
                 <th>EPA</th>
                 <th>Pred RP</th>
+                <th>Qual W-L-T</th>
                 <th>Pred Record</th>
                 <th>Win %</th>
               </tr>
@@ -297,6 +313,9 @@ function EventPredictions({ pred }) {
                   </td>
                   <td style={{ fontWeight: 600 }}>{(r.epa_total || 0).toFixed(1)}</td>
                   <td>{r.predicted_rp.toFixed(1)}</td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                    {r.actual_qual_record || '—'}
+                  </td>
                   <td>{r.predicted_record}</td>
                   <td>
                     <span className={`win-pct-cell ${r.win_pct >= 0.6 ? 'high' : r.win_pct >= 0.4 ? 'mid' : 'low'}`}>

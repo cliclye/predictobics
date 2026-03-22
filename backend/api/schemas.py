@@ -108,6 +108,8 @@ class PredictedRankEntry(BaseModel):
     predicted_rp: float = 0.0
     predicted_record: str = ""
     win_pct: float = 0.0
+    # Played qualification record when available (from TBA results in DB)
+    actual_qual_record: Optional[str] = None
 
 
 class PredictedAlliance(BaseModel):
@@ -136,6 +138,10 @@ class EventPredictionResponse(BaseModel):
     playoff_bracket: list[PlayoffMatch]
     predicted_winner: int
     predicted_winner_teams: list[str] = []
+    event_year: int = 0
+    alliance_skip_first_pick: bool = False
+    alliance_selection_note: str = ""
+    ranking_method_note: str = ""
 
 
 class IngestionStatus(BaseModel):

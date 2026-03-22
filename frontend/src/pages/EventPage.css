@@ -74,6 +74,29 @@
 }
 
 /* ── Predictions ── */
+.pred-info-banner {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.pred-info-line {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.pred-info-line:last-child {
+  margin-bottom: 0;
+}
+
+.pred-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .pred-container {
   display: flex;
   flex-direction: column;
