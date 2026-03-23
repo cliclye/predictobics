@@ -88,19 +88,48 @@ def _future_event_draw(rng: np.random.Generator) -> float:
     return max(0.0, float(rng.normal(8, 9)))
 
 
+def calendar_uncertainty_multiplier(
+    calendar_events_incomplete: int,
+    calendar_events_total: int,
+) -> float:
+    """
+    Scale simulated district-point variance when part of the district schedule is still open.
+
+    Without this, teams that already maxed two events can look "100% locked" while several
+    district events have not finished — other teams can still earn a lot of points there,
+    so outcome uncertainty should stay material until the calendar completes.
+    """
+    n_inc = int(max(0, calendar_events_incomplete))
+    n_tot = int(max(0, calendar_events_total))
+    if n_inc <= 0 or n_tot <= 0:
+        return 1.0
+    frac = n_inc / float(n_tot)
+    # Blend: share of calendar left + extra weight when many events remain
+    raw = 1.0 + 1.35 * frac + 0.14 * (n_inc ** 0.5)
+    return float(min(3.0, max(1.0, raw)))
+
+
 def estimate_lock_probabilities(
     rankings: list[dict],
     dcmp_spots: int,
     n_simulations: int = 8000,
     seed: int = 42,
+    calendar_events_incomplete: int = 0,
+    calendar_events_total: int = 0,
 ) -> list[dict]:
     """
     Monte Carlo: simulate remaining district qual points with correlated uncertainty
     (district-wide shocks) and heavy-tailed per-event draws — top teams are not all ~100%
     while meaningful points remain on the calendar.
+
+    ``calendar_events_incomplete`` / ``calendar_events_total`` (district events whose TBA
+    status is not *completed*) widen the simulation when the district season is still in
+    progress, so lock % reflects unknown outcomes at not-yet-finished events.
     """
     if not rankings or dcmp_spots < 1:
         return []
+
+    mult = calendar_uncertainty_multiplier(calendar_events_incomplete, calendar_events_total)
 
     rng = np.random.default_rng(seed)
     n_teams = len(rankings)
@@ -115,17 +144,21 @@ def estimate_lock_probabilities(
 
     probs = np.zeros(n_teams)
 
+    # Correlated noise for teams still eligible to earn points: scales with open calendar
+    global_std = 5.5 * mult
+    lognorm_sigma = min(0.32, 0.18 * mult)
+
     for _ in range(n_simulations):
         sim = base.copy()
-        global_shift = float(rng.normal(0.0, 5.5))
-        season_scale = float(rng.lognormal(0.0, 0.18))
+        global_shift = float(rng.normal(0.0, global_std))
+        season_scale = float(rng.lognormal(0.0, lognorm_sigma))
 
         for i in range(n_teams):
             if slots_left[i] <= 0:
                 continue
             sim[i] += global_shift
             for _ in range(int(slots_left[i])):
-                sim[i] += _future_event_draw(rng) * season_scale
+                sim[i] += _future_event_draw(rng) * season_scale * mult
 
         jitter = rng.random(n_teams) * 1e-5
         order = np.argsort(-(sim + jitter))

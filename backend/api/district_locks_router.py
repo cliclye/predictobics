@@ -21,6 +21,7 @@ from backend.ingestion.tba_client import (
 )
 from backend.metrics.district_locks import (
     abbrev_from_district_key,
+    calendar_uncertainty_multiplier,
     estimate_lock_probabilities,
     get_dcmp_spots_for_district,
     merge_locks_into_rankings,
@@ -178,6 +179,8 @@ async def get_district_locks(
     events_out: list[dict[str, Any]] = []
     impact_teams: set[str] = set()
     total_pts_available = 0
+    calendar_incomplete = 0
+    calendar_total = 0
 
     for ev in devents:
         ek = ev.get("key")
@@ -194,6 +197,16 @@ async def get_district_locks(
         for t in im:
             impact_teams.add(t)
 
+        # TBA EventType: 1 = District week events (ranking points); 2 = District Championship.
+        # DCMP does not add to the same district-points race; don't treat it as "open calendar"
+        # for lock uncertainty once all week events are done.
+        et = ev.get("event_type")
+        try:
+            is_district_cmp = int(et) == 2 if et is not None else False
+        except (TypeError, ValueError):
+            is_district_cmp = False
+        counts_for_calendar = not is_district_cmp
+
         events_out.append(
             {
                 "event_key": ek,
@@ -201,13 +214,21 @@ async def get_district_locks(
                 "status": status,
                 "team_count": n_teams,
                 "impact_winners": im,
+                "counts_for_lock_calendar": counts_for_calendar,
             }
         )
+        if counts_for_calendar:
+            calendar_total += 1
+            if (status or "") != "completed":
+                calendar_incomplete += 1
+    uncertainty_mult = calendar_uncertainty_multiplier(calendar_incomplete, calendar_total)
 
     lock_rows = estimate_lock_probabilities(
         rankings_raw,
         spots,
         n_simulations=n_simulations,
+        calendar_events_incomplete=calendar_incomplete,
+        calendar_events_total=calendar_total,
     )
     merged = merge_locks_into_rankings(rankings_raw, lock_rows)
 
@@ -245,11 +266,15 @@ async def get_district_locks(
         "impact_award_teams": sorted(impact_teams),
         "impact_award_count": len(impact_teams),
         "estimated_points_remaining_hint": total_pts_available,
+        "calendar_events_incomplete": calendar_incomplete,
+        "calendar_events_total": calendar_total,
+        "lock_uncertainty_multiplier": uncertainty_mult,
         "events": events_out,
         "teams": teams_out,
         "disclaimer": (
-            "DCMP field sizes are approximate. Lock %% is a Monte Carlo simulation of remaining "
-            "district points (not a guarantee). Impact Award teams show Impact instead of %%. "
-            "Verify with official FIRST / district sources."
+            "DCMP field sizes are approximate. Lock %% is a Monte Carlo over remaining district "
+            "points; uncertainty scales up while district *week* events (not District Championship) "
+            "are still in progress on the calendar — not a guarantee. "
+            "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
         ),
     }

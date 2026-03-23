@@ -177,6 +177,22 @@ export default function LocksPage() {
                 <span className="lbl">Points remaining (rough hint)</span>
                 <span className="val">{data.estimated_points_remaining_hint}</span>
               </div>
+              {data.calendar_events_total > 0 && (
+                <div>
+                  <span className="lbl">District events not finished (TBA)</span>
+                  <span className="val">
+                    {data.calendar_events_incomplete ?? 0} / {data.calendar_events_total}
+                  </span>
+                </div>
+              )}
+              {data.lock_uncertainty_multiplier != null && data.lock_uncertainty_multiplier > 1 && (
+                <div>
+                  <span className="lbl">Lock sim. uncertainty scale</span>
+                  <span className="val" title="Wider while district events are still open">
+                    ×{Number(data.lock_uncertainty_multiplier).toFixed(2)}
+                  </span>
+                </div>
+              )}
             </div>
             <p className="locks-disclaimer">{data.disclaimer}</p>
           </div>
