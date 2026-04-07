@@ -1,6 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { api } from '../api';
 import './PredictPage.css';
+
+function TeamAutocompleteInput({ value, onChange, placeholder }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDrop, setShowDrop] = useState(false);
+  const [hlIdx, setHlIdx] = useState(-1);
+  const debounceRef = useRef(null);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowDrop(false);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const handleChange = useCallback((val) => {
+    onChange(val);
+    setHlIdx(-1);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const t = val.trim();
+    if (!t) { setSuggestions([]); setShowDrop(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await api.searchTeams(t);
+        setSuggestions(res);
+        setShowDrop(res.length > 0);
+      } catch { setSuggestions([]); setShowDrop(false); }
+    }, 200);
+  }, [onChange]);
+
+  function selectTeam(num) {
+    onChange(String(num));
+    setShowDrop(false);
+    setSuggestions([]);
+  }
+
+  function handleKeyDown(e) {
+    if (!showDrop || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHlIdx(i => Math.min(i + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHlIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' && hlIdx >= 0) { e.preventDefault(); selectTeam(suggestions[hlIdx].team_number); }
+    else if (e.key === 'Escape') setShowDrop(false);
+  }
+
+  return (
+    <div className="team-ac-wrap" ref={wrapRef}>
+      <input
+        className="input alliance-input"
+        placeholder={placeholder}
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        onFocus={() => { if (suggestions.length > 0) setShowDrop(true); }}
+        onKeyDown={handleKeyDown}
+        autoComplete="off"
+      />
+      {showDrop && suggestions.length > 0 && (
+        <div className="team-ac-dropdown">
+          {suggestions.map((t, idx) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`team-ac-item ${idx === hlIdx ? 'highlighted' : ''}`}
+              onMouseDown={() => selectTeam(t.team_number)}
+              onMouseEnter={() => setHlIdx(idx)}
+            >
+              <span className="team-ac-num">{t.team_number}</span>
+              <span className="team-ac-name">{t.name || 'Unknown'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PredictPage() {
   const [eventKey, setEventKey] = useState('');
@@ -64,7 +139,7 @@ function PredictPage() {
           <label className="field-label">Event Key</label>
           <input
             className="input"
-            placeholder="e.g. 2024casj"
+            placeholder="e.g. 2025wasno"
             value={eventKey}
             onChange={e => setEventKey(e.target.value)}
           />
@@ -74,12 +149,11 @@ function PredictPage() {
           <div className="alliance-box red-box">
             <h3>Red Alliance</h3>
             {redTeams.map((t, i) => (
-              <input
-                key={i}
-                className="input alliance-input"
-                placeholder={`Team ${i + 1} (e.g. 254)`}
+              <TeamAutocompleteInput
+                key={`r${i}`}
                 value={t}
-                onChange={e => setTeam('red', i, e.target.value)}
+                onChange={val => setTeam('red', i, val)}
+                placeholder={`Team ${i + 1} (e.g. 254)`}
               />
             ))}
           </div>
@@ -87,12 +161,11 @@ function PredictPage() {
           <div className="alliance-box blue-box">
             <h3>Blue Alliance</h3>
             {blueTeams.map((t, i) => (
-              <input
-                key={i}
-                className="input alliance-input"
-                placeholder={`Team ${i + 1} (e.g. 1678)`}
+              <TeamAutocompleteInput
+                key={`b${i}`}
                 value={t}
-                onChange={e => setTeam('blue', i, e.target.value)}
+                onChange={val => setTeam('blue', i, val)}
+                placeholder={`Team ${i + 1} (e.g. 1678)`}
               />
             ))}
           </div>

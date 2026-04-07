@@ -98,4 +98,7 @@ export const api = {
   getDistrictsForLocks: (year) => fetchJSON(`/district_locks/districts/${year}`),
   getDistrictLocks: (districtKey, year) =>
     fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}`),
+  /** TBA District Championship event key (e.g. pnw + year → DCMP for predictions). */
+  getDistrictChampionshipEvent: (districtAbbrev, year) =>
+    fetchJSON(`/district_locks/championship/${encodeURIComponent(districtAbbrev)}/${year}`),
 };

@@ -74,6 +74,18 @@ class MatchPredictionResponse(BaseModel):
     red_expected_score: float
     blue_expected_score: float
     model_used: str
+    # Component EPA breakdown per alliance (optional — populated when EPA data exists)
+    red_auto_epa: Optional[float] = None
+    red_teleop_epa: Optional[float] = None
+    red_endgame_epa: Optional[float] = None
+    blue_auto_epa: Optional[float] = None
+    blue_teleop_epa: Optional[float] = None
+    blue_endgame_epa: Optional[float] = None
+    # Effective EPA (EPA × consistency × reliability) per alliance
+    red_effective_epa: Optional[float] = None
+    blue_effective_epa: Optional[float] = None
+    # Predicted margin (red − blue)
+    predicted_margin: Optional[float] = None
 
 
 class SimulationTeamResult(BaseModel):

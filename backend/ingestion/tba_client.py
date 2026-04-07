@@ -92,6 +92,23 @@ async def get_district_events_list(district_key: str, year: int) -> list[dict]:
     return await tba_get(f"/district/{district_key}/events") or []
 
 
+async def get_district_championship_event(district_key: str, year: int) -> dict | None:
+    """
+    District Championship for a district (TBA EventType 2 = DISTRICT_CMP).
+
+    ``district_key`` is e.g. ``2026pnw``. ``year`` is unused but kept for call-site clarity.
+    """
+    events = await get_district_events_list(district_key, year)
+    for ev in events:
+        et = ev.get("event_type")
+        try:
+            if int(et) == 2:
+                return ev
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 async def get_event_awards(event_key: str) -> list[dict]:
     return await tba_get(f"/event/{event_key}/awards") or []
 

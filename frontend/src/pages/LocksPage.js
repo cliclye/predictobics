@@ -126,6 +126,11 @@ export default function LocksPage() {
         <p className="page-subtitle">
           DCMP qualification estimates from district points (The Blue Alliance). Separate from EPA predictions.
         </p>
+        {(districtKey || '').toLowerCase().includes('pnw') && (
+          <p className="locks-pnw-predict-link">
+            <Link to="/pnw-dcmp">PNW District Championship — EPA rankings &amp; playoff predictions</Link>
+          </p>
+        )}
       </div>
 
       <div className="locks-controls card">

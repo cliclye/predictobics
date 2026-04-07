@@ -1,0 +1,70 @@
+.pnw-dcmp-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+
+.pnw-dcmp-hero {
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.pnw-dcmp-hero .page-subtitle {
+  max-width: 36rem;
+  margin: 0.5rem auto 0;
+  line-height: 1.5;
+}
+
+.pnw-dcmp-controls {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.pnw-dcmp-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pnw-dcmp-controls select {
+  max-width: 220px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.pnw-dcmp-loading {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.pnw-dcmp-error {
+  padding: 1.25rem;
+}
+
+.pnw-dcmp-error-title {
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  color: #f85149;
+}
+
+.pnw-dcmp-error-msg {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.pnw-dcmp-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.pnw-dcmp-hint code {
+  font-size: 0.8rem;
+}

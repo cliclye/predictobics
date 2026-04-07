@@ -65,6 +65,40 @@ class EPAResult:
             self.synergy_scores = {}
 
 
+def _weighted_mean(values: list[float], weights: list[float]) -> float:
+    if not values:
+        return 0.0
+    arr = np.asarray(values, dtype=float)
+    warr = np.asarray(weights, dtype=float) if weights else np.ones(len(arr), dtype=float)
+    weight_sum = float(np.sum(warr))
+    if weight_sum <= 1e-9:
+        return float(np.mean(arr))
+    return float(np.sum(arr * warr) / weight_sum)
+
+
+def _weighted_variance(values: list[float], weights: list[float], default: float) -> float:
+    if len(values) <= 1:
+        return float(default)
+    arr = np.asarray(values, dtype=float)
+    warr = np.asarray(weights, dtype=float) if weights else np.ones(len(arr), dtype=float)
+    weight_sum = float(np.sum(warr))
+    if weight_sum <= 1e-9:
+        return float(np.var(arr))
+    mean = float(np.sum(arr * warr) / weight_sum)
+    centered = arr - mean
+    return float(np.sum(warr * centered * centered) / weight_sum)
+
+
+def _weighted_mean_square(values: np.ndarray, weights: np.ndarray) -> float:
+    if values.size == 0:
+        return 0.0
+    warr = np.asarray(weights, dtype=float)
+    weight_sum = float(np.sum(warr))
+    if weight_sum <= 1e-9:
+        return float(np.mean(values * values))
+    return float(np.sum(warr * values * values) / weight_sum)
+
+
 def compute_epa(records: list[MatchRecord]) -> EPAResult:
     if not records:
         return EPAResult(metrics={})
@@ -132,11 +166,14 @@ def compute_epa(records: list[MatchRecord]) -> EPAResult:
         if std_r < 1e-6:
             break
         z_scores = np.abs(residuals) / std_r
-        outlier_mask = z_scores > settings.epa_outlier_z_threshold
-        if not np.any(outlier_mask):
+        robust_factor = np.minimum(
+            1.0,
+            (settings.epa_outlier_z_threshold / np.maximum(z_scores, 1e-6)) ** 2,
+        )
+        robust_factor = np.maximum(robust_factor, 0.05)
+        if np.allclose(robust_factor, 1.0):
             break
-        adj_w = weights.copy()
-        adj_w[outlier_mask] *= 0.05
+        adj_w = weights * robust_factor
         epa_total = _solve_wls(A, b_total, adj_w, n_teams, mean_total)
         epa_auto = _solve_wls(A, b_auto, adj_w, n_teams, mean_auto)
         epa_teleop = _solve_wls(A, b_teleop, adj_w, n_teams, mean_teleop)
@@ -145,60 +182,71 @@ def compute_epa(records: list[MatchRecord]) -> EPAResult:
 
     # ── Global residual variance (feeds noise model in predictor) ──
     predicted = A @ epa_total
-    global_residual_var = float(np.var(b_total - predicted))
+    residuals = b_total - predicted
+    global_residual_var = _weighted_mean_square(residuals, weights)
+    team_size_prior = float(np.mean([len(r.team_keys) for r in records])) if records else 3.0
+    team_residual_var_prior = global_residual_var / max(team_size_prior ** 2, 1.0)
 
     # ── Per-team residuals, variance, consistency ──
     team_resids: dict[str, list[float]] = {tk: [] for tk in all_teams}
+    team_resid_weights: dict[str, list[float]] = {tk: [] for tk in all_teams}
     team_match_count: dict[str, int] = {tk: 0 for tk in all_teams}
 
     for i, rec in enumerate(records):
-        per_team_resid = (rec.score_total - predicted[i]) / max(len(rec.team_keys), 1)
+        per_team_resid = residuals[i] / max(len(rec.team_keys), 1)
         for tk in rec.team_keys:
             if tk in team_idx:
                 team_resids[tk].append(per_team_resid)
+                team_resid_weights[tk].append(float(weights[i]))
                 team_match_count[tk] += 1
 
     # ── Opponent strengths + defense modeling ──
     team_opp_epas: dict[str, list[float]] = {tk: [] for tk in all_teams}
     team_opp_score_deltas: dict[str, list[float]] = {tk: [] for tk in all_teams}
-    by_match: dict[str, list[MatchRecord]] = {}
-    for r in records:
-        by_match.setdefault(r.match_key, []).append(r)
+    team_opp_weights: dict[str, list[float]] = {tk: [] for tk in all_teams}
+    by_match: dict[str, list[tuple[MatchRecord, int]]] = {}
+    for i, r in enumerate(records):
+        by_match.setdefault(r.match_key, []).append((r, i))
 
-    for match_key, sides in by_match.items():
+    for _, sides in by_match.items():
         if len(sides) != 2:
             continue
         for si in range(2):
-            our = sides[si]
-            opp = sides[1 - si]
+            our, our_idx = sides[si]
+            opp, opp_idx = sides[1 - si]
             opp_epa_sum = sum(epa_total[team_idx[tk]] for tk in opp.team_keys if tk in team_idx)
-            opp_predicted = sum(epa_total[team_idx[tk]] for tk in opp.team_keys if tk in team_idx)
-            opp_actual = opp.score_total
-            opp_delta = opp_actual - opp_predicted
+            opp_epa_avg = opp_epa_sum / max(len(opp.team_keys), 1)
+            opp_actual = opp.score_total - opp.foul_points_received
+            opp_delta = (opp_actual - opp_epa_sum) / max(len(our.team_keys), 1)
+            matchup_weight = float((weights[our_idx] + weights[opp_idx]) / 2.0)
             for tk in our.team_keys:
                 if tk in team_opp_epas:
-                    team_opp_epas[tk].append(opp_epa_sum)
+                    team_opp_epas[tk].append(opp_epa_avg)
                     team_opp_score_deltas[tk].append(opp_delta)
+                    team_opp_weights[tk].append(matchup_weight)
 
     global_avg_epa = float(np.mean(epa_total)) if n_teams > 0 else mean_total
 
     # ── Synergy: track pair residuals ──
     pair_bonus: dict[tuple[str, str], list[float]] = {}
-    for rec in records:
+    pair_weights: dict[tuple[str, str], list[float]] = {}
+    for i, rec in enumerate(records):
         tks = [tk for tk in rec.team_keys if tk in team_idx]
         if len(tks) < 2:
             continue
         alliance_pred = sum(epa_total[team_idx[tk]] for tk in tks)
-        resid = rec.score_total - alliance_pred
+        resid = (rec.score_total - rec.foul_points_received) - alliance_pred
+        weight = float(weights[i])
         for a_idx in range(len(tks)):
             for b_idx in range(a_idx + 1, len(tks)):
                 pair = tuple(sorted([tks[a_idx], tks[b_idx]]))
                 pair_bonus.setdefault(pair, []).append(resid / max(len(tks) - 1, 1))
+                pair_weights.setdefault(pair, []).append(weight)
 
-    synergy_scores: dict[str, float] = {}
+    synergy_scores: dict[tuple[str, str], float] = {}
     for pair, vals in pair_bonus.items():
         if len(vals) >= 2:
-            avg = float(np.mean(vals))
+            avg = _weighted_mean(vals, pair_weights.get(pair, []))
             synergy_scores[pair] = avg
 
     # ── Assemble final metrics ──
@@ -208,24 +256,32 @@ def compute_epa(records: list[MatchRecord]) -> EPAResult:
         n_played = team_match_count[tk]
 
         resids = team_resids[tk]
-        variance = float(np.var(resids)) if len(resids) > 1 else (mean_total * 0.3) ** 2
-        stdev = float(np.std(resids)) if len(resids) > 1 else mean_total * 0.3
-        consistency = 1.0 / (1.0 + stdev / max(mean_total, 1.0))
+        resid_weights = team_resid_weights[tk]
+        raw_variance = _weighted_variance(resids, resid_weights, team_residual_var_prior)
+        shrink = 4.0 / max(n_played + 4.0, 1.0)
+        variance = (1.0 - shrink) * raw_variance + shrink * team_residual_var_prior
+        stdev = float(np.sqrt(max(variance, 0.0)))
+        consistency_scale = max(mean_total, abs(float(epa_total[idx])) * 0.8, 1.0)
+        consistency = 1.0 / (1.0 + stdev / consistency_scale)
 
-        reliability = 1.0
+        reliability = 0.4
         if n_played > 0:
-            dead_matches = sum(1 for r in resids if (epa_total[idx] + r) < settings.epa_dead_robot_threshold)
-            reliability = 1.0 - (dead_matches / n_played)
+            weight_total = max(float(sum(resid_weights)), 1e-9)
+            dead_weight = sum(
+                weight for resid, weight in zip(resids, resid_weights)
+                if (epa_total[idx] + resid) < settings.epa_dead_robot_threshold
+            )
+            active_share = 1.0 - (dead_weight / weight_total)
+            experience = 1.0 - float(np.exp(-n_played / 3.0))
+            reliability = float(np.clip(0.4 + 0.6 * active_share * experience, 0.1, 1.0))
 
         opp_strengths = team_opp_epas.get(tk, [])
-        sos = float(np.mean(opp_strengths)) if opp_strengths else global_avg_epa
+        opp_weights = team_opp_weights.get(tk, [])
+        sos = _weighted_mean(opp_strengths, opp_weights) if opp_strengths else global_avg_epa
 
         opp_deltas = team_opp_score_deltas.get(tk, [])
-        defense_impact = float(np.mean(opp_deltas)) if opp_deltas else 0.0
-        if global_avg_epa > 0 and sos > 0:
-            defense_adj = float(epa_total[idx]) * (sos / global_avg_epa) - defense_impact * 0.3
-        else:
-            defense_adj = float(epa_total[idx])
+        defense_impact = _weighted_mean(opp_deltas, opp_weights) if opp_deltas else 0.0
+        defense_adj = float(epa_total[idx]) + 0.18 * (sos - global_avg_epa) - 0.45 * defense_impact
 
         results[tk] = TeamMetrics(
             team_key=tk,
@@ -250,11 +306,13 @@ def compute_epa(records: list[MatchRecord]) -> EPAResult:
 
 def _solve_wls(A: np.ndarray, b: np.ndarray, w: np.ndarray,
                n_teams: int, prior_mean: float) -> np.ndarray:
-    W = np.diag(w)
+    weights = np.asarray(w, dtype=float)
     lam = settings.epa_prior_weight * max(prior_mean, 0.1)
 
-    AtWA = A.T @ W @ A + lam * np.eye(n_teams)
-    AtWb = A.T @ W @ b + lam * prior_mean * np.ones(n_teams)
+    weighted_design = A * weights[:, None]
+    AtWA = A.T @ weighted_design
+    AtWA[np.diag_indices(n_teams)] += lam
+    AtWb = A.T @ (weights * b) + lam * prior_mean * np.ones(n_teams)
 
     try:
         x = np.linalg.solve(AtWA, AtWb)

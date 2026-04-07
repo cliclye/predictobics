@@ -95,10 +95,29 @@ async def compute_event_metrics(event_key: str):
         valid_teams = {r[0] for r in existing_result.fetchall()}
 
         year = int(event_key[:4])
+        updated_at = datetime.utcnow()
+        metric_columns = (
+            "year",
+            "epa_total",
+            "epa_auto",
+            "epa_teleop",
+            "epa_endgame",
+            "epa_defense_adjusted",
+            "consistency",
+            "reliability",
+            "strength_of_schedule",
+            "matches_played",
+            "score_variance",
+            "updated_at",
+        )
+        rows_to_upsert = []
         for team_key, tm in metrics.items():
             if team_key not in valid_teams:
                 continue
-            metric_vals = dict(
+            rows_to_upsert.append(dict(
+                team_key=team_key,
+                event_key=event_key,
+                year=year,
                 epa_total=tm.epa_total,
                 epa_auto=tm.epa_auto,
                 epa_teleop=tm.epa_teleop,
@@ -109,21 +128,25 @@ async def compute_event_metrics(event_key: str):
                 strength_of_schedule=tm.strength_of_schedule,
                 matches_played=tm.matches_played,
                 score_variance=tm.score_variance,
-                updated_at=datetime.utcnow(),
-            )
-            stmt = pg_insert(TeamEventMetrics.__table__).values(
-                team_key=team_key,
-                event_key=event_key,
-                year=year,
-                **metric_vals,
-            ).on_conflict_do_update(
+                updated_at=updated_at,
+            ))
+
+        if not rows_to_upsert:
+            logger.warning("No valid teams found to update metrics for %s", event_key)
+            return
+
+        stmt = pg_insert(TeamEventMetrics.__table__).values(rows_to_upsert)
+        excluded = stmt.excluded
+        update_values = {column: getattr(excluded, column) for column in metric_columns}
+        await session.execute(
+            stmt.on_conflict_do_update(
                 constraint="uq_team_event",
-                set_=metric_vals,
+                set_=update_values,
             )
-            await session.execute(stmt)
+        )
 
         await session.commit()
-        logger.info(f"Computed metrics for {len(metrics)} teams at {event_key}")
+        logger.info(f"Computed metrics for {len(rows_to_upsert)} teams at {event_key}")
 
 
 async def compute_year_metrics(year: int):

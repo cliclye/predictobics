@@ -5,6 +5,7 @@ import TeamPage from './pages/TeamPage';
 import EventPage from './pages/EventPage';
 import PredictPage from './pages/PredictPage';
 import LocksPage from './pages/LocksPage';
+import PnwDcmpPage from './pages/PnwDcmpPage';
 import './App.css';
 
 function App() {
@@ -27,6 +28,12 @@ function App() {
           <Link to="/locks" className={location.pathname === '/locks' ? 'active' : ''}>
             Locks
           </Link>
+          <Link
+            to="/pnw-dcmp"
+            className={location.pathname === '/pnw-dcmp' ? 'active' : ''}
+          >
+            PNW DCMP
+          </Link>
         </div>
       </nav>
       <main className="main-content">
@@ -36,6 +43,7 @@ function App() {
           <Route path="/event/:eventKey" element={<EventPage />} />
           <Route path="/predict" element={<PredictPage />} />
           <Route path="/locks" element={<LocksPage />} />
+          <Route path="/pnw-dcmp" element={<PnwDcmpPage />} />
         </Routes>
       </main>
       <footer className="footer">

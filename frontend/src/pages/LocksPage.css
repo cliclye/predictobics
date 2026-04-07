@@ -7,6 +7,17 @@
   margin-bottom: 1.25rem;
 }
 
+.locks-pnw-predict-link {
+  margin: 0.75rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.locks-pnw-predict-link a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .locks-controls .locks-control-row {
   display: flex;
   flex-wrap: wrap;

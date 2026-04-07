@@ -251,11 +251,19 @@ async def list_teams(
     search: str = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import cast, String as SAString
     query = select(Team)
     if search:
-        query = query.where(
-            Team.name.ilike(f"%{search}%") | Team.key.ilike(f"%{search}%")
-        )
+        s = search.strip()
+        if s.isdigit():
+            # Numeric prefix: match team numbers starting with the typed digits
+            query = query.where(
+                cast(Team.team_number, SAString).like(f"{s}%")
+            )
+        else:
+            query = query.where(
+                Team.name.ilike(f"%{s}%") | Team.key.ilike(f"%{s}%")
+            )
     query = query.order_by(Team.team_number).offset(page * size).limit(size)
     result = await db.execute(query)
     teams = result.scalars().all()

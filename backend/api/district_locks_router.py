@@ -13,6 +13,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.ingestion.tba_client import (
+    get_district_championship_event,
     get_district_events_list,
     get_district_rankings,
     get_districts_for_year,
@@ -141,6 +142,32 @@ async def list_districts(year: int):
                 }
             )
     return sorted(out, key=lambda x: x.get("name") or "")
+
+
+@router.get("/championship/{district_abbrev}/{year}")
+async def lookup_district_championship_event(district_abbrev: str, year: int):
+    """
+    Resolve the TBA event key for a district's District Championship (DCMP).
+
+    Example: ``/district_locks/championship/pnw/2026`` → PNW DCMP for use with
+    ``/event/{event_key}`` (EPA rankings, event & playoff predictions).
+    """
+    dkey = _normalize_district_key(district_abbrev, year)
+    ev = await get_district_championship_event(dkey, year)
+    if not ev or not ev.get("key"):
+        raise HTTPException(
+            404,
+            f"No District Championship event (TBA type DISTRICT_CMP) found for {dkey}. "
+            "It may not be published on TBA for this season yet.",
+        )
+    return {
+        "district_key": dkey,
+        "year": year,
+        "event_key": ev["key"],
+        "name": ev.get("name") or ev["key"],
+        "start_date": ev.get("start_date"),
+        "week": ev.get("week"),
+    }
 
 
 @router.get("/{district_key}/{year}")

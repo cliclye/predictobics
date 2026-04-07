@@ -1,5 +1,5 @@
 .predict-page {
-  max-width: 700px;
+  max-width: 720px;
   margin: 0 auto;
 }
 
@@ -24,7 +24,7 @@
 .alliances-row {
   display: flex;
   gap: 1rem;
-  align-items: center;
+  align-items: stretch;
   margin-bottom: 1.5rem;
 }
 
@@ -67,6 +67,9 @@
   font-weight: 800;
   color: var(--text-muted);
   font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .predict-btn {
@@ -136,4 +139,74 @@
 
 .blue-label {
   color: var(--accent);
+}
+
+/* ── Team autocomplete in PredictPage ── */
+.team-ac-wrap {
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.team-ac-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 200;
+}
+
+.team-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+
+.team-ac-item:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.team-ac-item:hover,
+.team-ac-item.highlighted {
+  background: var(--bg-hover);
+}
+
+.team-ac-num {
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 42px;
+  font-size: 0.85rem;
+}
+
+.team-ac-name {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .alliances-row {
+    flex-direction: column;
+  }
+  .vs-divider {
+    justify-content: center;
+    padding: 0.25rem 0;
+  }
 }

@@ -22,6 +22,11 @@ function HomePage() {
   const [teamSearch, setTeamSearch] = useState('');
   const [teamResults, setTeamResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchDebounceRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
 
   const [eventQuery, setEventQuery] = useState('');
   const [weekFilter, setWeekFilter] = useState('all');
@@ -56,6 +61,18 @@ function HomePage() {
     }
   }, [year, loading, events]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+          inputRef.current && !inputRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   async function loadEvents() {
     setLoading(true);
     setError(null);
@@ -68,18 +85,83 @@ function HomePage() {
     setLoading(false);
   }
 
+  // Live autocomplete: debounce search as user types
+  function handleTeamInputChange(val) {
+    setTeamSearch(val);
+    setHighlightIdx(-1);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setTeamResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        setSearching(true);
+        const results = await api.searchTeams(trimmed);
+        setTeamResults(results);
+        setShowDropdown(results.length > 0);
+      } catch {
+        setTeamResults([]);
+        setShowDropdown(false);
+      }
+      setSearching(false);
+    }, 200);
+  }
+
+  function handleTeamSelect(teamKey) {
+    setShowDropdown(false);
+    setTeamSearch('');
+    setTeamResults([]);
+    navigate(`/team/${teamKey}`);
+  }
+
+  function handleTeamSearchKeyDown(e) {
+    if (!showDropdown || teamResults.length === 0) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const trimmed = teamSearch.trim();
+        if (trimmed.match(/^\d+$/)) {
+          navigate(`/team/frc${trimmed}`);
+        }
+      }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIdx(i => Math.min(i + 1, teamResults.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIdx(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightIdx >= 0 && highlightIdx < teamResults.length) {
+        handleTeamSelect(teamResults[highlightIdx].key);
+      } else {
+        const trimmed = teamSearch.trim();
+        if (trimmed.match(/^\d+$/)) {
+          navigate(`/team/frc${trimmed}`);
+        }
+      }
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false);
+    }
+  }
+
   async function handleTeamSearch(e) {
     e.preventDefault();
     if (!teamSearch.trim()) return;
+    const trimmed = teamSearch.trim();
+    if (trimmed.match(/^\d+$/)) {
+      navigate(`/team/frc${trimmed}`);
+      return;
+    }
     setSearching(true);
     try {
-      const key = teamSearch.match(/^\d+$/) ? `frc${teamSearch}` : teamSearch;
-      if (key.startsWith('frc')) {
-        navigate(`/team/${key}`);
-        return;
-      }
-      const results = await api.searchTeams(teamSearch);
+      const results = await api.searchTeams(trimmed);
       setTeamResults(results);
+      setShowDropdown(results.length > 0);
     } catch {
       setTeamResults([]);
     }
@@ -212,34 +294,47 @@ function HomePage() {
         <h1 className="page-title">Predictobics</h1>
         <p className="page-subtitle">Advanced FRC analytics with component EPA, defense-adjusted metrics, and ML-powered predictions</p>
 
-        <form className="search-bar" onSubmit={handleTeamSearch}>
-          <input
-            className="input search-input"
-            placeholder="Search team number or name..."
-            value={teamSearch}
-            onChange={(e) => setTeamSearch(e.target.value)}
-          />
-          <button className="btn btn-primary" type="submit" disabled={searching}>
-            {searching ? 'Searching...' : 'Search'}
-          </button>
-        </form>
-
-        {teamResults.length > 0 && (
-          <div className="card team-results">
-            {teamResults.map((t) => (
-              <Link key={t.key} to={`/team/${t.key}`} className="team-result-row">
-                <span className="team-number">{t.team_number}</span>
-                <span className="team-name">{t.name || 'Unknown'}</span>
-                <span className="team-loc">{[t.city, t.state_prov, t.country].filter(Boolean).join(', ')}</span>
-              </Link>
-            ))}
-          </div>
-        )}
+        <div className="search-wrapper">
+          <form className="search-bar" onSubmit={handleTeamSearch} autoComplete="off">
+            <div className="search-input-wrap">
+              <input
+                ref={inputRef}
+                className="input search-input"
+                placeholder="Search team number or name..."
+                value={teamSearch}
+                onChange={(e) => handleTeamInputChange(e.target.value)}
+                onFocus={() => { if (teamResults.length > 0) setShowDropdown(true); }}
+                onKeyDown={handleTeamSearchKeyDown}
+              />
+              {searching && <span className="search-spinner" />}
+            </div>
+            <button className="btn btn-primary" type="submit" disabled={searching}>
+              Go
+            </button>
+          </form>
+          {showDropdown && teamResults.length > 0 && (
+            <div className="team-dropdown" ref={dropdownRef}>
+              {teamResults.map((t, idx) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`team-dropdown-item ${idx === highlightIdx ? 'highlighted' : ''}`}
+                  onMouseDown={() => handleTeamSelect(t.key)}
+                  onMouseEnter={() => setHighlightIdx(idx)}
+                >
+                  <span className="team-number">{t.team_number}</span>
+                  <span className="team-name">{t.name || 'Unknown'}</span>
+                  <span className="team-loc">{[t.city, t.state_prov, t.country].filter(Boolean).join(', ')}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="events-section">
         <div className="section-header">
-          <h2>Events</h2>
+          <h2>{year} Events</h2>
           <select className="select" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {years.map((y) => (
               <option key={y} value={y}>
@@ -402,6 +497,19 @@ function HomePage() {
               </div>
             );
           })}
+
+        {!loading && viewMode === 'table' && filteredEvents.length === 0 && events.length > 0 && (
+          <div className="card events-empty-filter">
+            <p>No events match your filters. Try clearing search or choosing &quot;All weeks&quot; / &quot;All regions&quot;.</p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => { setEventQuery(''); setWeekFilter('all'); setRegionFilter('all'); }}
+            >
+              Reset filters
+            </button>
+          </div>
+        )}
 
         {!loading && viewMode === 'cards' && filteredEvents.length === 0 && events.length > 0 && (
           <div className="card events-empty-filter">
