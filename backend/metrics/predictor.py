@@ -3,9 +3,14 @@ Match prediction engine — v2.
 
 Tier 1 — Gaussian Analytical (always available):
     effective_EPA = EPA * consistency * reliability
-    Each alliance score ~ N(Σ effective_EPA, Σ variance + noise)
+    Each alliance score ~ N(μ, σ²) with μ from effective + defense blend.
+    σ² layers: per-team residual variance + calibrated noise, reliability/consistency
+    widening, few-match epistemic uncertainty, within-alliance EPA spread (carry),
+    and score-level heteroskedasticity when both alliance means are known.
+    μ_r and μ_b also subtract opposing defensive credit (EPA defense adjustment
+    above raw EPA per robot), lowering expected score vs defensive alliances.
     P(red wins) = Φ((μ_r - μ_b) / √(σ²_r + σ²_b))
-    Noise variance auto-calibrated from data.
+    Win probs then get mild calibration shrink (adaptive near 50–50 vs tails).
 
 Tier 2 — ML ensemble (when trained):
     GradientBoosting (sklearn) with 30+ features including:
@@ -77,6 +82,49 @@ class AllianceFeatures:
     defense_adjusted_epa: float = 0.0
     avg_matches_played: float = 0.0
     synergy_bonus: float = 0.0
+    # Sum of max(0, epa_defense_adjusted - epa_total) for robots on this alliance (defensive credit).
+    defense_suppression_sum: float = 0.0
+
+
+def _alliance_score_variance(
+    a: AllianceFeatures,
+    *,
+    mean_scale_reference: Optional[tuple[float, float]] = None,
+) -> float:
+    """
+    Variance of an alliance's total score for the Gaussian win model and Monte Carlo draws.
+
+    Layers: residual per-team variance + calibrated match noise, reliability and consistency
+    widening, few-match epistemic uncertainty, within-alliance EPA spread (carry imbalance),
+    and optional score-level scaling when both alliance means are available.
+    """
+    settings = get_settings()
+    sigma2 = float(max(a.total_variance, 0.0) + get_noise_variance())
+
+    rel = min(max(a.avg_reliability, 0.0), 1.0)
+    sigma2 *= 1.0 + (1.0 - rel) * settings.prediction_reliability_variance_scale
+
+    cons = min(max(a.avg_consistency, 0.0), 1.0)
+    sigma2 *= 1.0 + (1.0 - cons) * settings.prediction_consistency_variance_scale
+
+    k = settings.prediction_match_count_k
+    if a.avg_matches_played > 0:
+        sigma2 *= 1.0 + k / a.avg_matches_played
+
+    spread = max(0.0, a.max_epa - a.min_epa)
+    sigma2 += settings.prediction_carry_spread_variance * spread * spread
+
+    if mean_scale_reference is not None:
+        mu_r, mu_b = mean_scale_reference
+        avg_mu = max(0.0, (mu_r + mu_b) * 0.5)
+        sl = settings.prediction_score_level_noise_scale
+        if sl > 0 and avg_mu > 1e-6:
+            factor = 1.0 + sl * (avg_mu / 150.0)
+            cap = max(1.0, settings.prediction_score_level_noise_cap)
+            factor = min(factor, cap)
+            sigma2 *= factor
+
+    return float(max(sigma2, 1e-3))
 
 
 def build_alliance_features_from_metrics(
@@ -100,6 +148,7 @@ def build_alliance_features_from_metrics(
     effective_terms = []
     defense_terms = []
     match_counts = []
+    defense_suppression_sum = 0.0
 
     for tk in team_keys:
         m = metrics.get(tk)
@@ -119,6 +168,8 @@ def build_alliance_features_from_metrics(
             da = getattr(m, "epa_defense_adjusted", None)
             defense_terms.append(float(da) if da is not None else e)
             match_counts.append(getattr(m, "matches_played", 0) or 0)
+            if da is not None:
+                defense_suppression_sum += max(0.0, float(da) - e)
         else:
             epas.append(0)
             autos.append(0)
@@ -162,13 +213,27 @@ def build_alliance_features_from_metrics(
         defense_adjusted_epa=float(sum(defense_terms)),
         avg_matches_played=float(np.mean(match_counts)) if match_counts else 0.0,
         synergy_bonus=syn_bonus,
+        defense_suppression_sum=float(defense_suppression_sum),
     )
 
 
 def _calibrate_win_prob(p: float) -> float:
-    """Shrink extreme probabilities toward 0.5 (better Brier on held-out matches)."""
-    s = get_settings().prediction_prob_shrink
-    p = 0.5 + (p - 0.5) * s
+    """
+    Shrink probabilities toward 0.5 for calibration.
+
+    Uses a uniform shrink factor near 50–50, but eases off toward the tails so
+    heavy favorites/underdogs are not over-pulled when the z-score already
+    implied a strong edge.
+    """
+    settings = get_settings()
+    s = settings.prediction_prob_shrink
+    w = settings.prediction_adaptive_shrink_strength
+    if w > 0 and 0.0 < s < 1.0:
+        t = 2.0 * abs(p - 0.5)
+        s_eff = min(1.0, s + (1.0 - s) * w * (t * t))
+    else:
+        s_eff = s
+    p = 0.5 + (p - 0.5) * s_eff
     return float(np.clip(p, 0.02, 0.98))
 
 
@@ -182,6 +247,26 @@ def _blended_match_mean(alliance: AllianceFeatures) -> float:
     else:
         base = float(mu_eff)
     return base + alliance.synergy_bonus
+
+
+def _expected_scores_with_opponent_defense(
+    red: AllianceFeatures, blue: AllianceFeatures
+) -> tuple[float, float]:
+    """
+    Expected alliance totals: offensive/defense-blended mean minus pressure from the
+    other alliance's defensive EPA credit (robots with epa_defense_adjusted above epa_total).
+    """
+    settings = get_settings()
+    base_r = _blended_match_mean(red)
+    base_b = _blended_match_mean(blue)
+    w = float(settings.prediction_opponent_defense_penalty)
+    if w <= 0:
+        return base_r, base_b
+    cap = max(0.0, float(settings.prediction_opponent_defense_penalty_cap))
+    floor = max(1.0, float(settings.prediction_min_expected_alliance_score))
+    pen_r = min(w * blue.defense_suppression_sum, cap)
+    pen_b = min(w * red.defense_suppression_sum, cap)
+    return max(base_r - pen_r, floor), max(base_b - pen_b, floor)
 
 
 def predict_match(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
@@ -210,24 +295,11 @@ def predict_match(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionRe
 
 
 def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> PredictionResult:
-    mu_r = _blended_match_mean(red)
-    mu_b = _blended_match_mean(blue)
+    mu_r, mu_b = _expected_scores_with_opponent_defense(red, blue)
 
-    settings = get_settings()
-    sigma2_r = red.total_variance + get_noise_variance()
-    sigma2_b = blue.total_variance + get_noise_variance()
-
-    # Continuous per-alliance reliability scaling (replaces binary 0.5 threshold)
-    rel_scale = settings.prediction_reliability_variance_scale
-    sigma2_r *= 1.0 + (1.0 - red.avg_reliability) * rel_scale
-    sigma2_b *= 1.0 + (1.0 - blue.avg_reliability) * rel_scale
-
-    # Match-count confidence: fewer matches = higher epistemic uncertainty
-    k = settings.prediction_match_count_k
-    if red.avg_matches_played > 0:
-        sigma2_r *= 1.0 + k / red.avg_matches_played
-    if blue.avg_matches_played > 0:
-        sigma2_b *= 1.0 + k / blue.avg_matches_played
+    mean_ref = (mu_r, mu_b)
+    sigma2_r = _alliance_score_variance(red, mean_scale_reference=mean_ref)
+    sigma2_b = _alliance_score_variance(blue, mean_scale_reference=mean_ref)
 
     combined_sigma = np.sqrt(sigma2_r + sigma2_b)
     if combined_sigma < 1e-6:
@@ -238,9 +310,7 @@ def _predict_analytical(red: AllianceFeatures, blue: AllianceFeatures) -> Predic
     red_win_prob = float(stats.norm.cdf(z))
     red_win_prob = np.clip(red_win_prob, 0.01, 0.99)
 
-    # Expected alliance totals match the same means as the win-probability model
-    exp_r = _blended_match_mean(red)
-    exp_b = _blended_match_mean(blue)
+    exp_r, exp_b = mu_r, mu_b
 
     return PredictionResult(
         red_win_prob=float(red_win_prob),
@@ -267,8 +337,7 @@ def _predict_ml(model, red: AllianceFeatures, blue: AllianceFeatures) -> Predict
     except Exception:
         return _predict_analytical(red, blue)
 
-    exp_r = _blended_match_mean(red)
-    exp_b = _blended_match_mean(blue)
+    exp_r, exp_b = _expected_scores_with_opponent_defense(red, blue)
 
     return PredictionResult(
         red_win_prob=red_win_prob,
@@ -304,8 +373,8 @@ def _build_feature_vector(red: AllianceFeatures, blue: AllianceFeatures) -> list
         red.avg_consistency - blue.avg_consistency,
         red.avg_reliability - blue.avg_reliability,
         # Derived
-        np.sqrt(red.total_variance + get_noise_variance()),
-        np.sqrt(blue.total_variance + get_noise_variance()),
+        np.sqrt(_alliance_score_variance(red)),
+        np.sqrt(_alliance_score_variance(blue)),
         red.max_epa - red.min_epa,
         blue.max_epa - blue.min_epa,
         # Defense-adjusted EPA (raw + gap)
@@ -455,12 +524,14 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
     soss = []
     variances = []
     match_counts = []
+    defense_suppression_sum = 0.0
 
     for tk in team_keys:
         m = metrics.get((tk, event_key))
         if m is None:
             return None
-        epas.append(m.epa_total or 0)
+        e = m.epa_total or 0
+        epas.append(e)
         autos.append(m.epa_auto or 0)
         teleops.append(m.epa_teleop or 0)
         endgames.append(m.epa_endgame or 0)
@@ -469,6 +540,9 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
         soss.append(m.strength_of_schedule or 0)
         variances.append(m.score_variance or 0)
         match_counts.append(getattr(m, "matches_played", 0) or 0)
+        da = getattr(m, "epa_defense_adjusted", None)
+        if da is not None:
+            defense_suppression_sum += max(0.0, float(da) - e)
 
     raw_sum = sum(epas)
     avg_c = float(np.mean(consistencies))
@@ -502,6 +576,7 @@ def _aggregate_alliance(team_keys: list[str], event_key: str,
         min_epa=min(epas),
         defense_adjusted_epa=float(sum(def_terms)) if def_terms else 0.0,
         avg_matches_played=float(np.mean(match_counts)) if match_counts else 0.0,
+        defense_suppression_sum=float(defense_suppression_sum),
     )
 
 
@@ -615,13 +690,13 @@ async def simulate_event(event_key: str, n_simulations: int = 1000) -> dict[str,
             red_feat = build_alliance_features_from_metrics(red_teams, metrics)
             blue_feat = build_alliance_features_from_metrics(blue_teams, metrics)
 
-            mu_r = _blended_match_mean(red_feat)
-            mu_b = _blended_match_mean(blue_feat)
+            mu_r, mu_b = _expected_scores_with_opponent_defense(red_feat, blue_feat)
 
-            r_var = red_feat.total_variance
-            b_var = blue_feat.total_variance
-            sigma_r = float(np.sqrt(max(r_var, 0) + get_noise_variance()))
-            sigma_b = float(np.sqrt(max(b_var, 0) + get_noise_variance()))
+            mean_ref = (mu_r, mu_b)
+            sigma2_r = _alliance_score_variance(red_feat, mean_scale_reference=mean_ref)
+            sigma2_b = _alliance_score_variance(blue_feat, mean_scale_reference=mean_ref)
+            sigma_r = float(np.sqrt(sigma2_r))
+            sigma_b = float(np.sqrt(sigma2_b))
             if sigma_r < 1e-6:
                 sigma_r = 12.0
             if sigma_b < 1e-6:

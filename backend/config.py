@@ -18,17 +18,31 @@ class Settings(BaseSettings):
 
     # Match win-probability calibration (tuned vs walk-forward backtests; env override)
     prediction_prob_shrink: float = 0.92
+    # Blend toward less shrink when p is already extreme (preserves tails vs uniform shrink).
+    prediction_adaptive_shrink_strength: float = 0.26
     prediction_z_temperature: float = 1.04
     prediction_ml_blend_weight: float = 0.42
     # Blend sum of per-team defense-adjusted EPA into the Gaussian mean (0 = off).
     # Applies to match win % / score expectations and Monte Carlo event simulation.
     prediction_defense_blend: float = 0.28
+    # Subtract from an alliance's expected score based on opposing alliance's defensive EPA credit
+    # (sum over robots of max(0, epa_defense_adjusted - epa_total)). 0 = off.
+    prediction_opponent_defense_penalty: float = 0.55
+    prediction_opponent_defense_penalty_cap: float = 42.0
+    prediction_min_expected_alliance_score: float = 6.0
     # Default noise variance for Gaussian model; auto-calibrated from EPA residuals when available
     prediction_noise_variance: float = 92.0
     # Continuous reliability variance scaling: variance *= 1 + (1-reliability) * this
     prediction_reliability_variance_scale: float = 1.0
     # Match-count confidence: variance *= 1 + k / matches_played (fewer matches = wider uncertainty)
     prediction_match_count_k: float = 3.0
+    # Inflate score variance when average consistency is low (volatile alliances).
+    prediction_consistency_variance_scale: float = 0.32
+    # Extra variance proportional to (max EPA − min EPA)² within an alliance (carry vs weak third).
+    prediction_carry_spread_variance: float = 0.065
+    # Scale total variance up as expected match pace increases (heteroskedasticity).
+    prediction_score_level_noise_scale: float = 0.22
+    prediction_score_level_noise_cap: float = 2.15
 
     # Optional: require this value in X-Bulk-Ingest-Secret header for POST /ingest/bulk
     bulk_ingest_secret: str = ""
