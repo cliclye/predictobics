@@ -31,6 +31,15 @@ from backend.metrics.district_locks import (
 
 logger = logging.getLogger(__name__)
 
+_LOCKS_DISCLAIMER = (
+    "DCMP field sizes and WCMP merit-slot estimates are approximate (see FIRST Game Manual "
+    "Championship allocation; WCMP uses a rough reserve for DCMP winners and common awards). "
+    "Lock %% uses the same Monte Carlo over remaining district week points; uncertainty scales "
+    "up while district *week* events (not District Championship) are still in progress — not a "
+    "guarantee. WCMP %% ignores Regional paths and is not a full qualification model. "
+    "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
+)
+
 router = APIRouter(prefix="/district_locks", tags=["district_locks"])
 
 
@@ -128,87 +137,29 @@ async def _count_impact_teams_for_event(event_key: str) -> list[str]:
     return teams
 
 
-@router.get("/districts/{year}")
-async def list_districts(year: int):
-    """All districts for a season (for dropdown)."""
-    raw = await get_districts_for_year(year)
-    out = []
-    for d in raw:
-        if isinstance(d, dict) and d.get("key"):
-            out.append(
-                {
-                    "key": d["key"],
-                    "abbrev": d.get("abbrev") or abbrev_from_district_key(d["key"]),
-                    "name": d.get("display_name") or d.get("name") or d["key"],
-                }
-            )
-    return sorted(out, key=lambda x: x.get("name") or "")
-
-
-@router.get("/championship/{district_abbrev}/{year}")
-async def lookup_district_championship_event(district_abbrev: str, year: int):
-    """
-    Resolve the TBA event key for a district's District Championship (DCMP).
-
-    Example: ``/district_locks/championship/pnw/2026`` → PNW DCMP for use with
-    ``/event/{event_key}`` (EPA rankings, event & playoff predictions).
-    """
-    dkey = _normalize_district_key(district_abbrev, year)
-    ev = await get_district_championship_event(dkey, year)
-    if not ev or not ev.get("key"):
-        raise HTTPException(
-            404,
-            f"No District Championship event (TBA type DISTRICT_CMP) found for {dkey}. "
-            "It may not be published on TBA for this season yet.",
-        )
-    return {
-        "district_key": dkey,
-        "year": year,
-        "event_key": ev["key"],
-        "name": ev.get("name") or ev["key"],
-        "start_date": ev.get("start_date"),
-        "week": ev.get("week"),
-    }
-
-
-@router.get("/{district_key}/{year}")
-async def get_district_locks(
-    district_key: str,
+async def _district_locks_payload_impl(
+    dkey: str,
     year: int,
-    dcmp_spots: Optional[int] = Query(
-        None,
-        description="Override DCMP field size for this district (from FIRST)",
-    ),
-    wcmp_merit_spots: Optional[int] = Query(
-        None,
-        description="Override estimated merit-based FIRST Championship slots filled via "
-        "district-points order (after typical DCMP award paths)",
-    ),
-    n_simulations: int = Query(8000, ge=2000, le=25000),
-):
-    """
-    District rankings, per-event status, Impact winners, estimated DCMP and WCMP lock %.
-    """
-    dkey = _normalize_district_key(district_key, year)
-
+    dcmp_spots_override: Optional[int],
+    wcmp_merit_spots_override: Optional[int],
+    n_simulations: int,
+) -> dict[str, Any]:
+    """Build full district locks JSON. Raises ValueError if TBA has no rankings for this district."""
     rank_data = await get_district_rankings(dkey, year)
     if rank_data is None:
-        raise HTTPException(
-            404,
+        raise ValueError(
             f"TBA returned no data for district {dkey}. "
-            "Set TBA_API_KEY on the API server, and use a valid district key (e.g. 2026pnw).",
+            "Set TBA_API_KEY on the API server, and use a valid district key (e.g. 2026pnw)."
         )
 
-    # TBA returns a list; older code paths may use {"rankings": [...]}
     if isinstance(rank_data, list):
         rankings_raw = rank_data
     else:
         rankings_raw = (rank_data.get("rankings") or []) if isinstance(rank_data, dict) else []
 
-    spots = get_dcmp_spots_for_district(dkey, dcmp_spots)
-    wcmp_spots = get_wcmp_merit_spots_for_district(dkey, wcmp_merit_spots)
+    spots = get_dcmp_spots_for_district(dkey, dcmp_spots_override)
+    wcmp_spots = get_wcmp_merit_spots_for_district(dkey, wcmp_merit_spots_override)
 
-    # District events + Impact winners (collect before building team rows)
     devents = await get_district_events_list(dkey, year)
     events_out: list[dict[str, Any]] = []
     impact_teams: set[str] = set()
@@ -223,7 +174,6 @@ async def get_district_locks(
         name = ev.get("name") or ek
         n_teams = int(ev.get("team_count") or len(ev.get("teams", []) or []) or 0)
         status = await _event_status(ek)
-        # Rough hint: not yet awarded district points at incomplete events
         if status != "completed" and n_teams > 0:
             total_pts_available += int(22 * n_teams)
 
@@ -231,9 +181,6 @@ async def get_district_locks(
         for t in im:
             impact_teams.add(t)
 
-        # TBA EventType: 1 = District week events (ranking points); 2 = District Championship.
-        # DCMP does not add to the same district-points race; don't treat it as "open calendar"
-        # for lock uncertainty once all week events are done.
         et = ev.get("event_type")
         try:
             is_district_cmp = int(et) == 2 if et is not None else False
@@ -317,12 +264,176 @@ async def get_district_locks(
         "lock_uncertainty_multiplier": uncertainty_mult,
         "events": events_out,
         "teams": teams_out,
-        "disclaimer": (
-            "DCMP field sizes and WCMP merit-slot estimates are approximate (see FIRST Game Manual "
-            "Championship allocation; WCMP uses a rough reserve for DCMP winners and common awards). "
-            "Lock %% uses the same Monte Carlo over remaining district week points; uncertainty scales "
-            "up while district *week* events (not District Championship) are still in progress — not a "
-            "guarantee. WCMP %% ignores Regional paths and is not a full qualification model. "
-            "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
-        ),
+        "disclaimer": _LOCKS_DISCLAIMER,
     }
+
+
+def _slim_teams_for_wcmp_page(teams: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for t in teams:
+        out.append(
+            {
+                "rank": t.get("rank"),
+                "team_key": t.get("team_key"),
+                "team_number": t.get("team_number"),
+                "event_1_pts": t.get("event_1_pts"),
+                "event_2_pts": t.get("event_2_pts"),
+                "age_adjustment": t.get("age_adjustment"),
+                "rookie_bonus": t.get("rookie_bonus"),
+                "point_total": t.get("point_total"),
+                "lock_probability": t.get("lock_probability"),
+                "lock_display": t.get("lock_display"),
+                "wcmp_lock_probability": t.get("wcmp_lock_probability"),
+                "wcmp_lock_display": t.get("wcmp_lock_display"),
+                "status": t.get("status"),
+            }
+        )
+    return out
+
+
+@router.get("/districts/{year}")
+async def list_districts(year: int):
+    """All districts for a season (for dropdown)."""
+    raw = await get_districts_for_year(year)
+    out = []
+    for d in raw:
+        if isinstance(d, dict) and d.get("key"):
+            out.append(
+                {
+                    "key": d["key"],
+                    "abbrev": d.get("abbrev") or abbrev_from_district_key(d["key"]),
+                    "name": d.get("display_name") or d.get("name") or d["key"],
+                }
+            )
+    return sorted(out, key=lambda x: x.get("name") or "")
+
+
+@router.get("/wcmp/{year}")
+async def all_districts_wcmp_locks(
+    year: int,
+    n_simulations: int = Query(8000, ge=2000, le=25000),
+):
+    """
+    WCMP-focused bundle: every district model team for the season with DCMP + WCMP lock %%,
+    one district after another (TBA-friendly). Must stay above ``/{district_key}/{year}``.
+    """
+    raw = await get_districts_for_year(year)
+    districts_meta: list[dict[str, Any]] = []
+    for d in raw:
+        if isinstance(d, dict) and d.get("key"):
+            districts_meta.append(
+                {
+                    "key": d["key"],
+                    "abbrev": d.get("abbrev") or abbrev_from_district_key(d["key"]),
+                    "name": d.get("display_name") or d.get("name") or d["key"],
+                }
+            )
+    districts_meta.sort(key=lambda x: x.get("name") or "")
+
+    results: list[dict[str, Any]] = []
+    for dm in districts_meta:
+        dkey = dm["key"]
+        dname = dm["name"]
+        try:
+            full = await _district_locks_payload_impl(
+                dkey,
+                year,
+                None,
+                None,
+                n_simulations,
+            )
+            results.append(
+                {
+                    "district_key": full["district_key"],
+                    "name": dname,
+                    "abbrev": dm.get("abbrev"),
+                    "dcmp_spots": full["dcmp_spots"],
+                    "wcmp_merit_spots": full["wcmp_merit_spots"],
+                    "calendar_events_incomplete": full["calendar_events_incomplete"],
+                    "calendar_events_total": full["calendar_events_total"],
+                    "lock_uncertainty_multiplier": full["lock_uncertainty_multiplier"],
+                    "teams": _slim_teams_for_wcmp_page(full["teams"]),
+                    "error": None,
+                }
+            )
+        except ValueError as e:
+            logger.warning("district locks skipped for %s: %s", dkey, e)
+            results.append(
+                {
+                    "district_key": dkey,
+                    "name": dname,
+                    "abbrev": dm.get("abbrev"),
+                    "error": str(e),
+                    "teams": [],
+                }
+            )
+        except Exception as e:
+            logger.exception("district locks failed for %s", dkey)
+            results.append(
+                {
+                    "district_key": dkey,
+                    "name": dname,
+                    "abbrev": dm.get("abbrev"),
+                    "error": f"Server error while loading district: {e!s}",
+                    "teams": [],
+                }
+            )
+
+    return {
+        "year": year,
+        "districts": results,
+        "disclaimer": _LOCKS_DISCLAIMER,
+    }
+
+
+@router.get("/championship/{district_abbrev}/{year}")
+async def lookup_district_championship_event(district_abbrev: str, year: int):
+    """
+    Resolve the TBA event key for a district's District Championship (DCMP).
+
+    Example: ``/district_locks/championship/pnw/2026`` → PNW DCMP for use with
+    ``/event/{event_key}`` (EPA rankings, event & playoff predictions).
+    """
+    dkey = _normalize_district_key(district_abbrev, year)
+    ev = await get_district_championship_event(dkey, year)
+    if not ev or not ev.get("key"):
+        raise HTTPException(
+            404,
+            f"No District Championship event (TBA type DISTRICT_CMP) found for {dkey}. "
+            "It may not be published on TBA for this season yet.",
+        )
+    return {
+        "district_key": dkey,
+        "year": year,
+        "event_key": ev["key"],
+        "name": ev.get("name") or ev["key"],
+        "start_date": ev.get("start_date"),
+        "week": ev.get("week"),
+    }
+
+
+@router.get("/{district_key}/{year}")
+async def get_district_locks(
+    district_key: str,
+    year: int,
+    dcmp_spots: Optional[int] = Query(
+        None,
+        description="Override DCMP field size for this district (from FIRST)",
+    ),
+    wcmp_merit_spots: Optional[int] = Query(
+        None,
+        description="Override estimated merit-based FIRST Championship slots filled via "
+        "district-points order (after typical DCMP award paths)",
+    ),
+    n_simulations: int = Query(8000, ge=2000, le=25000),
+):
+    """
+    District rankings, per-event status, Impact winners, estimated DCMP and WCMP lock %.
+    """
+    dkey = _normalize_district_key(district_key, year)
+    try:
+        return await _district_locks_payload_impl(
+            dkey, year, dcmp_spots, wcmp_merit_spots, n_simulations
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e

@@ -5,6 +5,7 @@ import TeamPage from './pages/TeamPage';
 import EventPage from './pages/EventPage';
 import PredictPage from './pages/PredictPage';
 import LocksPage from './pages/LocksPage';
+import WcmpLocksPage from './pages/WcmpLocksPage';
 import PnwDcmpPage from './pages/PnwDcmpPage';
 import './App.css';
 
@@ -29,6 +30,12 @@ function App() {
             Locks
           </Link>
           <Link
+            to="/locks/wcmp"
+            className={location.pathname === '/locks/wcmp' ? 'active' : ''}
+          >
+            WCMP locks
+          </Link>
+          <Link
             to="/pnw-dcmp"
             className={location.pathname === '/pnw-dcmp' ? 'active' : ''}
           >
@@ -42,6 +49,7 @@ function App() {
           <Route path="/team/:teamKey" element={<TeamPage />} />
           <Route path="/event/:eventKey" element={<EventPage />} />
           <Route path="/predict" element={<PredictPage />} />
+          <Route path="/locks/wcmp" element={<WcmpLocksPage />} />
           <Route path="/locks" element={<LocksPage />} />
           <Route path="/pnw-dcmp" element={<PnwDcmpPage />} />
         </Routes>
