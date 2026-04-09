@@ -1,8 +1,9 @@
 """
-District Championship (DCMP) lock estimates from TBA district rankings.
+District Championship (DCMP) and FIRST Championship (WCMP) lock estimates from TBA district rankings.
 
 Uses Monte Carlo over remaining district point opportunities to estimate
-P(rank <= DCMP cutoff). Rules vary by year; DCMP capacity is configurable.
+P(rank <= DCMP cutoff) and, separately, P(rank <= merit-based Championship cutoff).
+Rules vary by year; capacities are configurable.
 """
 
 from __future__ import annotations
@@ -54,6 +55,33 @@ def get_dcmp_spots_for_district(district_key: str, override: Optional[int] = Non
         return int(override)
     ab = abbrev_from_district_key(district_key)
     return DEFAULT_DCMP_SPOTS.get(ab, 48)
+
+
+# Approximate merit-based FIRST Championship slots filled via final district-points order,
+# after reserving ~9 slots for typical DCMP winners / Impact / Dean's List / EI / RAS / WFFA paths.
+# Based on FIRST Game Manual Table 11-8 style allocations (~2025); tune yearly.
+DEFAULT_WCMP_MERIT_SPOTS: dict[str, int] = {
+    "pnw": 13,
+    "fim": 71,
+    "ne": 22,
+    "chs": 8,
+    "in": 4,
+    "isr": 4,
+    "fma": 14,
+    "fnc": 5,
+    "fit": 19,
+    "fin": 4,
+    "fsc": 4,
+    "pch": 4,
+    "ont": 13,
+}
+
+
+def get_wcmp_merit_spots_for_district(district_key: str, override: Optional[int] = None) -> int:
+    if override is not None and override > 0:
+        return int(override)
+    ab = abbrev_from_district_key(district_key)
+    return DEFAULT_WCMP_MERIT_SPOTS.get(ab, 8)
 
 
 def _team_event_slots_used(rank_row: dict) -> tuple[int, list[dict]]:
@@ -116,6 +144,7 @@ def estimate_lock_probabilities(
     seed: int = 42,
     calendar_events_incomplete: int = 0,
     calendar_events_total: int = 0,
+    wcmp_merit_spots: Optional[int] = None,
 ) -> list[dict]:
     """
     Monte Carlo: simulate remaining district qual points with correlated uncertainty
@@ -125,6 +154,9 @@ def estimate_lock_probabilities(
     ``calendar_events_incomplete`` / ``calendar_events_total`` (district events whose TBA
     status is not *completed*) widen the simulation when the district season is still in
     progress, so lock % reflects unknown outcomes at not-yet-finished events.
+
+    When ``wcmp_merit_spots`` is set, the same draws also estimate P(rank <= that cutoff)
+    for approximate FIRST Championship qualification via district-points order (merit path).
     """
     if not rankings or dcmp_spots < 1:
         return []
@@ -143,6 +175,9 @@ def estimate_lock_probabilities(
         slots_left[i] = max(0, 2 - min(used, 2))
 
     probs = np.zeros(n_teams)
+    do_wcmp = wcmp_merit_spots is not None and int(wcmp_merit_spots) > 0
+    wk = min(int(wcmp_merit_spots), n_teams) if do_wcmp else 0
+    probs_wcmp = np.zeros(n_teams) if do_wcmp else None
 
     # Correlated noise for teams still eligible to earn points: scales with open calendar
     global_std = 5.5 * mult
@@ -166,20 +201,27 @@ def estimate_lock_probabilities(
         inv_rank[order] = np.arange(n_teams)
         in_top = inv_rank < dcmp_spots
         probs += in_top.astype(float)
+        if do_wcmp and probs_wcmp is not None and wk > 0:
+            probs_wcmp += (inv_rank < wk).astype(float)
 
     probs /= float(n_simulations)
+    if do_wcmp and probs_wcmp is not None:
+        probs_wcmp /= float(n_simulations)
 
     out = []
     for i, row in enumerate(rankings):
         tk = row.get("team_key", "")
         p = float(np.clip(probs[i], 0.0, 1.0))
-        out.append(
-            {
-                "team_key": tk,
-                "lock_probability": p,
-                "status": _status_bucket(p),
-            }
-        )
+        item: dict = {
+            "team_key": tk,
+            "lock_probability": p,
+            "status": _status_bucket(p),
+        }
+        if do_wcmp and probs_wcmp is not None:
+            pw = float(np.clip(probs_wcmp[i], 0.0, 1.0))
+            item["wcmp_lock_probability"] = pw
+            item["wcmp_status"] = _status_bucket(pw)
+        out.append(item)
     return out
 
 

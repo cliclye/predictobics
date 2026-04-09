@@ -6,6 +6,7 @@ model training) are run as background tasks so the API remains responsive.
 """
 
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query, Header
@@ -141,6 +142,68 @@ def _run_snake_draft_greedy_epa(
 
 # ──────────────────────────── Team endpoints ────────────────────────────
 
+
+def _best_prior_team_metrics(
+    event_key: str,
+    rows_for_team: list,
+) -> Optional[TeamEventMetrics]:
+    """EPA row for this team at event_key, else best metrics from another event in the same season."""
+    direct = next((m for m in rows_for_team if m.event_key == event_key), None)
+    if direct is not None:
+        return direct
+    candidates = [m for m in rows_for_team if m.event_key != event_key]
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda m: (m.matches_played or 0, m.updated_at or datetime.min),
+    )
+
+
+async def _merge_team_season_event_keys(
+    db: AsyncSession,
+    team_key: str,
+    year: int,
+    metrics_rows: list[TeamEventMetrics],
+) -> list[str]:
+    """
+    Events to show on the team page: any event with stored EPA for this team, plus any event
+    where an ingested match lists this team (e.g. DCMP schedule before qual scores exist).
+    """
+    metrics_keys: list[str] = []
+    seen_m: set[str] = set()
+    for m in metrics_rows:
+        if m.event_key not in seen_m:
+            seen_m.add(m.event_key)
+            metrics_keys.append(m.event_key)
+
+    match_events_result = await db.execute(
+        select(Match.event_key)
+        .distinct()
+        .select_from(Match)
+        .join(MatchAlliance, MatchAlliance.match_key == Match.key)
+        .where(MatchAlliance.team_key == team_key)
+        .where(Match.event_key.like(f"{year}%")),
+    )
+    match_keys = [row[0] for row in match_events_result.all()]
+    all_ek = set(metrics_keys) | set(match_keys)
+    if not all_ek:
+        return metrics_keys
+
+    ev_rows = await db.execute(
+        select(Event.key, Event.start_date).where(Event.key.in_(all_ek))
+    )
+    start_by_key = {k: sd for k, sd in ev_rows.all()}
+    return sorted(
+        all_ek,
+        key=lambda k: (
+            start_by_key.get(k) is None,
+            start_by_key.get(k) or datetime.min,
+            k,
+        ),
+    )
+
+
 @router.get("/team/{team_key}", response_model=TeamDetailResponse)
 async def get_team(
     team_key: str,
@@ -203,14 +266,13 @@ async def get_team_season(
     )
     metrics_rows = metrics_result.scalars().all()
 
-    event_keys_ordered: list[str] = []
-    seen: set[str] = set()
-    for m in metrics_rows:
-        if m.event_key not in seen:
-            seen.add(m.event_key)
-            event_keys_ordered.append(m.event_key)
+    event_keys_ordered = await _merge_team_season_event_keys(
+        db, team_key, year, metrics_rows,
+    )
 
-    matches_by_event = await _match_responses_by_event(db, event_keys_ordered)
+    matches_by_event = await _match_responses_by_event(
+        db, event_keys_ordered, season_year=year,
+    )
 
     event_infos: dict[str, EventResponse] = {}
     if event_keys_ordered:
@@ -222,23 +284,49 @@ async def get_team_season(
                 start_date=e.start_date, end_date=e.end_date, week=e.week,
             )
 
+    metrics_response_list: list[TeamMetricsResponse] = []
+    for ek in event_keys_ordered:
+        chosen = _best_prior_team_metrics(ek, metrics_rows)
+        if chosen is None:
+            metrics_response_list.append(
+                TeamMetricsResponse(
+                    team_key=team_key, event_key=ek, year=year,
+                    matches_played=0,
+                )
+            )
+        elif chosen.event_key == ek:
+            metrics_response_list.append(
+                TeamMetricsResponse(
+                    team_key=chosen.team_key, event_key=ek, year=year,
+                    epa_total=chosen.epa_total, epa_auto=chosen.epa_auto,
+                    epa_teleop=chosen.epa_teleop, epa_endgame=chosen.epa_endgame,
+                    epa_defense_adjusted=chosen.epa_defense_adjusted,
+                    consistency=chosen.consistency, reliability=chosen.reliability,
+                    strength_of_schedule=chosen.strength_of_schedule,
+                    matches_played=chosen.matches_played or 0,
+                )
+            )
+        else:
+            # Schedule-only event (e.g. DCMP before quals): show EPA carried from prior events.
+            metrics_response_list.append(
+                TeamMetricsResponse(
+                    team_key=team_key, event_key=ek, year=year,
+                    epa_total=chosen.epa_total, epa_auto=chosen.epa_auto,
+                    epa_teleop=chosen.epa_teleop, epa_endgame=chosen.epa_endgame,
+                    epa_defense_adjusted=chosen.epa_defense_adjusted,
+                    consistency=chosen.consistency, reliability=chosen.reliability,
+                    strength_of_schedule=chosen.strength_of_schedule,
+                    matches_played=0,
+                )
+            )
+
     return TeamSeasonBundleResponse(
         team=TeamResponse(
             key=team.key, team_number=team.team_number, name=team.name,
             city=team.city, state_prov=team.state_prov, country=team.country,
             rookie_year=team.rookie_year,
         ),
-        metrics=[
-            TeamMetricsResponse(
-                team_key=m.team_key, event_key=m.event_key, year=m.year,
-                epa_total=m.epa_total, epa_auto=m.epa_auto,
-                epa_teleop=m.epa_teleop, epa_endgame=m.epa_endgame,
-                epa_defense_adjusted=m.epa_defense_adjusted,
-                consistency=m.consistency, reliability=m.reliability,
-                strength_of_schedule=m.strength_of_schedule,
-                matches_played=m.matches_played or 0,
-            ) for m in metrics_rows
-        ],
+        metrics=metrics_response_list,
         event_matches={ek: matches_by_event.get(ek, []) for ek in event_keys_ordered},
         event_infos=event_infos,
     )
@@ -349,6 +437,8 @@ COMP_LEVEL_ORDER = {"qm": 0, "ef": 1, "qf": 2, "sf": 3, "f": 4}
 async def _match_responses_by_event(
     db: AsyncSession,
     event_keys: list[str],
+    *,
+    season_year: Optional[int] = None,
 ) -> dict[str, list[MatchResponse]]:
     """Build match predictions for many events in a small number of DB round-trips."""
     out: dict[str, list[MatchResponse]] = {ek: [] for ek in event_keys}
@@ -383,21 +473,45 @@ async def _match_responses_by_event(
     for met in metrics_result.scalars().all():
         metrics_by_event.setdefault(met.event_key, {})[met.team_key] = met
 
+    all_team_keys: set[str] = set()
+    for m in matches:
+        sides = alliance_map.get(m.key, {})
+        for tk in sides.get("red", []) + sides.get("blue", []):
+            if tk:
+                all_team_keys.add(tk)
+
+    priors_by_team: dict[str, list[TeamEventMetrics]] = {}
+    if season_year is not None and all_team_keys:
+        prior_result = await db.execute(
+            select(TeamEventMetrics)
+            .where(TeamEventMetrics.year == season_year)
+            .where(TeamEventMetrics.team_key.in_(all_team_keys)),
+        )
+        for met in prior_result.scalars().all():
+            priors_by_team.setdefault(met.team_key, []).append(met)
+
+    def resolve_metric(event_k: str, tk: str) -> Optional[TeamEventMetrics]:
+        row = metrics_by_event.get(event_k, {}).get(tk)
+        if row is not None:
+            return row
+        return _best_prior_team_metrics(event_k, priors_by_team.get(tk, []))
+
     grouped: dict[str, list[Match]] = {}
     for m in matches:
         grouped.setdefault(m.event_key, []).append(m)
 
     for ek in event_keys:
         mlist = grouped.get(ek, [])
-        ev_metrics = metrics_by_event.get(ek, {})
         results: list[MatchResponse] = []
         for m in mlist:
             sides = alliance_map.get(m.key, {})
             red_teams = sides.get("red", [])
             blue_teams = sides.get("blue", [])
 
-            red_feat = build_alliance_features_from_metrics(red_teams, ev_metrics)
-            blue_feat = build_alliance_features_from_metrics(blue_teams, ev_metrics)
+            red_m = {tk: resolve_metric(ek, tk) for tk in red_teams if tk}
+            blue_m = {tk: resolve_metric(ek, tk) for tk in blue_teams if tk}
+            red_feat = build_alliance_features_from_metrics(red_teams, red_m)
+            blue_feat = build_alliance_features_from_metrics(blue_teams, blue_m)
 
             red_win_prob = None
             red_pred = None
@@ -433,7 +547,11 @@ async def _match_responses_by_event(
 
 @router.get("/matches/{event_key}", response_model=list[MatchResponse])
 async def get_matches(event_key: str, db: AsyncSession = Depends(get_db)):
-    by_ek = await _match_responses_by_event(db, [event_key])
+    try:
+        y = int(event_key[:4])
+    except (TypeError, ValueError):
+        y = None
+    by_ek = await _match_responses_by_event(db, [event_key], season_year=y)
     return by_ek.get(event_key, [])
 
 

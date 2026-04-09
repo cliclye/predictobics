@@ -52,15 +52,16 @@ function rowClass(st, index) {
   return 'lock-row out';
 }
 
-function LockPctCell({ t }) {
-  if (t.lock_display === 'Impact') {
+function LockPctCell({ t, wcmp = false }) {
+  const display = wcmp ? t.wcmp_lock_display : t.lock_display;
+  const prob = wcmp ? t.wcmp_lock_probability : t.lock_probability;
+  if (display === 'Impact') {
     return <strong className="impact-lock-label">Impact</strong>;
   }
-  if (t.lock_probability == null && t.lock_display !== 'Impact') {
+  if (prob == null && display !== 'Impact') {
     return <span className="lock-dash">—</span>;
   }
-  const p = t.lock_probability;
-  return <strong>{(p * 100).toFixed(1)}%</strong>;
+  return <strong>{(prob * 100).toFixed(1)}%</strong>;
 }
 
 export default function LocksPage() {
@@ -122,9 +123,10 @@ export default function LocksPage() {
   return (
     <div className="locks-page">
       <div className="locks-hero">
-        <h1 className="page-title">District Championship Locks</h1>
+        <h1 className="page-title">District &amp; Championship Locks</h1>
         <p className="page-subtitle">
-          DCMP qualification estimates from district points (The Blue Alliance). Separate from EPA predictions.
+          DCMP and FIRST Championship (WCMP) merit-path estimates from district points via The Blue Alliance.
+          Separate from EPA predictions.
         </p>
         {(districtKey || '').toLowerCase().includes('pnw') && (
           <p className="locks-pnw-predict-link">
@@ -173,6 +175,12 @@ export default function LocksPage() {
               <div>
                 <span className="lbl">DCMP spots (est.)</span>
                 <span className="val">{data.dcmp_spots}</span>
+              </div>
+              <div>
+                <span className="lbl">WCMP merit slots (est.)</span>
+                <span className="val" title="Approx. district-points slots to FIRST Championship after typical DCMP awards">
+                  {data.wcmp_merit_spots ?? '—'}
+                </span>
               </div>
               <div>
                 <span className="lbl">Impact Award teams (district events)</span>
@@ -236,7 +244,7 @@ export default function LocksPage() {
           </div>
 
           <div className="card">
-            <div className="card-header">Rankings &amp; DCMP lock %</div>
+            <div className="card-header">Rankings &amp; lock %</div>
             <div className="locks-legend">
               <span><span className="lg top50" /> Top 50 (by lock %, Impact first)</span>
               <span><span className="lg clinched" /> ≥~97% sim.</span>
@@ -257,6 +265,7 @@ export default function LocksPage() {
                     <th>Rookie</th>
                     <th>Total</th>
                     <th>DCMP lock %</th>
+                    <th title="Approx. merit-based FIRST Championship path via district points">WCMP lock %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -275,6 +284,9 @@ export default function LocksPage() {
                       <td><strong>{t.point_total}</strong></td>
                       <td className="lock-pct-cell">
                         <LockPctCell t={t} />
+                      </td>
+                      <td className="lock-pct-cell">
+                        <LockPctCell t={t} wcmp />
                       </td>
                     </tr>
                   ))}

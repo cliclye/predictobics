@@ -25,6 +25,7 @@ from backend.metrics.district_locks import (
     calendar_uncertainty_multiplier,
     estimate_lock_probabilities,
     get_dcmp_spots_for_district,
+    get_wcmp_merit_spots_for_district,
     merge_locks_into_rankings,
 )
 
@@ -178,10 +179,15 @@ async def get_district_locks(
         None,
         description="Override DCMP field size for this district (from FIRST)",
     ),
+    wcmp_merit_spots: Optional[int] = Query(
+        None,
+        description="Override estimated merit-based FIRST Championship slots filled via "
+        "district-points order (after typical DCMP award paths)",
+    ),
     n_simulations: int = Query(8000, ge=2000, le=25000),
 ):
     """
-    District rankings, per-event status, Impact winners, estimated DCMP lock %.
+    District rankings, per-event status, Impact winners, estimated DCMP and WCMP lock %.
     """
     dkey = _normalize_district_key(district_key, year)
 
@@ -200,6 +206,7 @@ async def get_district_locks(
         rankings_raw = (rank_data.get("rankings") or []) if isinstance(rank_data, dict) else []
 
     spots = get_dcmp_spots_for_district(dkey, dcmp_spots)
+    wcmp_spots = get_wcmp_merit_spots_for_district(dkey, wcmp_merit_spots)
 
     # District events + Impact winners (collect before building team rows)
     devents = await get_district_events_list(dkey, year)
@@ -256,6 +263,7 @@ async def get_district_locks(
         n_simulations=n_simulations,
         calendar_events_incomplete=calendar_incomplete,
         calendar_events_total=calendar_total,
+        wcmp_merit_spots=wcmp_spots,
     )
     merged = merge_locks_into_rankings(rankings_raw, lock_rows)
 
@@ -265,6 +273,8 @@ async def get_district_locks(
         br = _point_breakdown(row)
         lp = row.get("lock_probability", 0.0)
         st = row.get("status", "out")
+        wlp = row.get("wcmp_lock_probability")
+        wst = row.get("wcmp_status", "out")
         is_impact = tk in impact_teams
         entry: dict[str, Any] = {
             "rank": row.get("rank") or i + 1,
@@ -281,15 +291,24 @@ async def get_district_locks(
         if is_impact:
             entry["lock_display"] = "Impact"
             entry["lock_probability"] = None
+            entry["wcmp_lock_display"] = "Impact"
+            entry["wcmp_lock_probability"] = None
+            entry["wcmp_status"] = "impact"
         else:
             entry["lock_display"] = None
             entry["lock_probability"] = float(lp) if lp is not None else None
+            entry["wcmp_lock_display"] = None
+            entry["wcmp_lock_probability"] = (
+                float(wlp) if wlp is not None else None
+            )
+            entry["wcmp_status"] = wst
         teams_out.append(entry)
 
     return {
         "district_key": dkey,
         "year": year,
         "dcmp_spots": spots,
+        "wcmp_merit_spots": wcmp_spots,
         "impact_award_teams": sorted(impact_teams),
         "impact_award_count": len(impact_teams),
         "estimated_points_remaining_hint": total_pts_available,
@@ -299,9 +318,11 @@ async def get_district_locks(
         "events": events_out,
         "teams": teams_out,
         "disclaimer": (
-            "DCMP field sizes are approximate. Lock %% is a Monte Carlo over remaining district "
-            "points; uncertainty scales up while district *week* events (not District Championship) "
-            "are still in progress on the calendar — not a guarantee. "
+            "DCMP field sizes and WCMP merit-slot estimates are approximate (see FIRST Game Manual "
+            "Championship allocation; WCMP uses a rough reserve for DCMP winners and common awards). "
+            "Lock %% uses the same Monte Carlo over remaining district week points; uncertainty scales "
+            "up while district *week* events (not District Championship) are still in progress — not a "
+            "guarantee. WCMP %% ignores Regional paths and is not a full qualification model. "
             "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
         ),
     }

@@ -96,8 +96,13 @@ export const api = {
   compute: (eventKey) => postJSON(`/compute/${eventKey}`, undefined, { admin: true }),
   train: (year) => postJSON(`/train/${year}`, undefined, { admin: true }),
   getDistrictsForLocks: (year) => fetchJSON(`/district_locks/districts/${year}`),
-  getDistrictLocks: (districtKey, year) =>
-    fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}`),
+  getDistrictLocks: (districtKey, year, opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.dcmpSpots != null) q.set('dcmp_spots', String(opts.dcmpSpots));
+    if (opts.wcmpMeritSpots != null) q.set('wcmp_merit_spots', String(opts.wcmpMeritSpots));
+    const suffix = q.toString() ? `?${q}` : '';
+    return fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}${suffix}`);
+  },
   /** TBA District Championship event key (e.g. pnw + year → DCMP for predictions). */
   getDistrictChampionshipEvent: (districtAbbrev, year) =>
     fetchJSON(`/district_locks/championship/${encodeURIComponent(districtAbbrev)}/${year}`),
