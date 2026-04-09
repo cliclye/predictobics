@@ -55,6 +55,11 @@ async def get_team(team_key: str) -> dict | None:
     return await tba_get(f"/team/{team_key}")
 
 
+async def get_team_events(team_key: str, year: int) -> list[dict]:
+    """TBA v3: events a team is on for a season (includes DCMP once the team is on the event)."""
+    return await tba_get(f"/team/{team_key}/events/{year}") or []
+
+
 async def get_events_by_year(year: int) -> list[dict]:
     return await tba_get(f"/events/{year}") or []
 

@@ -61,6 +61,9 @@ function LockPctCell({ t, wcmp = false }) {
   if (prob == null && display !== 'Impact') {
     return <span className="lock-dash">—</span>;
   }
+  if (!Number.isFinite(prob)) {
+    return <span className="lock-dash">—</span>;
+  }
   return <strong>{(prob * 100).toFixed(1)}%</strong>;
 }
 
@@ -80,6 +83,7 @@ export default function LocksPage() {
     let cancelled = false;
     (async () => {
       setLoadingDistricts(true);
+      setError(null);
       try {
         const d = await api.getDistrictsForLocks(year);
         if (!cancelled) {
@@ -90,10 +94,17 @@ export default function LocksPage() {
               const pnw = d.find((x) => (x.abbrev || '').toLowerCase() === 'pnw');
               return (pnw || d[0]).key;
             });
+          } else {
+            setDistrictKey('');
+            setError('No districts returned for this season on the API (check TBA_API_KEY on the server if unexpected).');
           }
         }
       } catch (e) {
-        if (!cancelled) setDistricts([]);
+        if (!cancelled) {
+          setDistricts([]);
+          setDistrictKey('');
+          setError(e.message || 'Could not load the district list.');
+        }
       }
       setLoadingDistricts(false);
     })();
@@ -223,7 +234,7 @@ export default function LocksPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.events.map((ev) => (
+                  {(data.events || []).map((ev) => (
                     <tr key={ev.event_key} className={`ev-status-${ev.status}`}>
                       <td>
                         <Link to={`/event/${ev.event_key}`}>{ev.name}</Link>

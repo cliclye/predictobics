@@ -1,5 +1,23 @@
 const BASE = process.env.REACT_APP_API_URL || '/api';
 
+function apiUnreachableHelp() {
+  const isRelative = !BASE.startsWith('http');
+  if (isRelative && process.env.NODE_ENV === 'development') {
+    return (
+      'Cannot reach the API. Start the backend on port 8000 (from repo root: ' +
+      'PYTHONPATH=. ./venv/bin/python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000) ' +
+      'or run everything with: cd frontend && npm install && npm run dev'
+    );
+  }
+  if (isRelative) {
+    return (
+      'Cannot reach the API. Serve the app from the same host as the FastAPI app (it mounts /api), ' +
+      'or set REACT_APP_API_URL to your API base URL (e.g. https://your-api.example.com/api).'
+    );
+  }
+  return `Cannot reach the API at ${BASE}. Check that the server is up and CORS allows this origin.`;
+}
+
 /** Set only for trusted private builds; value is visible in the client bundle. */
 const ADMIN_CLIENT_SECRET = (process.env.REACT_APP_ADMIN_API_SECRET || '').trim();
 
@@ -10,11 +28,15 @@ async function fetchJSON(path) {
   try {
     res = await fetch(`${BASE}${path}`);
   } catch (e) {
-    throw new Error('Cannot reach the API server. Is the backend running?');
+    throw new Error(apiUnreachableHelp());
   }
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    throw new Error('Backend not connected. Deploy the API server and set REACT_APP_API_URL.');
+    const hint =
+      process.env.NODE_ENV === 'development'
+        ? ' Expected JSON from /api — is the FastAPI app running on 127.0.0.1:8000?'
+        : ' Set REACT_APP_API_URL if the API is on another host.';
+    throw new Error(`The server did not return JSON (${contentType || 'unknown type'}).${hint}`);
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -45,11 +67,15 @@ async function postJSON(path, body, { admin } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
-    throw new Error('Cannot reach the API server. Is the backend running?');
+    throw new Error(apiUnreachableHelp());
   }
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    throw new Error('Backend not connected. Deploy the API server and set REACT_APP_API_URL.');
+    const hint =
+      process.env.NODE_ENV === 'development'
+        ? ' Expected JSON from /api — is the FastAPI app running on 127.0.0.1:8000?'
+        : ' Set REACT_APP_API_URL if the API is on another host.';
+    throw new Error(`The server did not return JSON (${contentType || 'unknown type'}).${hint}`);
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);

@@ -13,9 +13,14 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "api": "cd .. && PYTHONPATH=. ./venv/bin/python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run api\" \"react-scripts start\""
   },
-  "proxy": "http://localhost:8000",
+  "proxy": "http://127.0.0.1:8000",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
   "engines": {
     "node": ">=18"
   },

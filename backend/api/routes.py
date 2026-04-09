@@ -36,6 +36,7 @@ from backend.metrics.double_elim_playoffs import (
 )
 from backend.config import get_settings
 from backend.ingestion.pipeline import ingest_year, ingest_event_matches, bulk_ingest_years
+from backend.ingestion.tba_client import get_team_events
 from backend.metrics.compute import compute_event_metrics, compute_year_metrics
 
 logger = logging.getLogger(__name__)
@@ -160,15 +161,54 @@ def _best_prior_team_metrics(
     )
 
 
+def _parse_tba_date(val: Optional[str]) -> Optional[datetime]:
+    if not val or not isinstance(val, str):
+        return None
+    s = val.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        try:
+            return datetime.fromisoformat(val)
+        except (ValueError, TypeError):
+            return None
+
+
+def _event_response_from_tba(data: dict) -> EventResponse:
+    key = data.get("key") or ""
+    y = data.get("year")
+    if y is None and len(key) >= 4 and key[:4].isdigit():
+        y = int(key[:4])
+    wk = data.get("week")
+    if wk is not None:
+        try:
+            wk = int(wk)
+        except (TypeError, ValueError):
+            wk = None
+    return EventResponse(
+        key=key,
+        name=data.get("name"),
+        year=int(y) if y is not None else 0,
+        city=data.get("city"),
+        state_prov=data.get("state_prov"),
+        country=data.get("country"),
+        start_date=_parse_tba_date(data.get("start_date")),
+        end_date=_parse_tba_date(data.get("end_date")),
+        week=wk,
+    )
+
+
 async def _merge_team_season_event_keys(
     db: AsyncSession,
     team_key: str,
     year: int,
     metrics_rows: list[TeamEventMetrics],
+    tba_events_by_key: Optional[dict] = None,
 ) -> list[str]:
     """
-    Events to show on the team page: any event with stored EPA for this team, plus any event
-    where an ingested match lists this team (e.g. DCMP schedule before qual scores exist).
+    Events to show on the team page: stored EPA events, events from ingested matches,
+    and (when provided) TBA team/event list — so DCMP appears once TBA lists the team even
+    if local match rows are missing or not yet ingested.
     """
     metrics_keys: list[str] = []
     seen_m: set[str] = set()
@@ -186,14 +226,25 @@ async def _merge_team_season_event_keys(
         .where(Match.event_key.like(f"{year}%")),
     )
     match_keys = [row[0] for row in match_events_result.all()]
-    all_ek = set(metrics_keys) | set(match_keys)
+
+    tba_keys: list[str] = []
+    if tba_events_by_key:
+        yp = f"{year}"
+        tba_keys = [k for k in tba_events_by_key if isinstance(k, str) and k.startswith(yp)]
+
+    all_ek = set(metrics_keys) | set(match_keys) | set(tba_keys)
     if not all_ek:
         return metrics_keys
 
     ev_rows = await db.execute(
         select(Event.key, Event.start_date).where(Event.key.in_(all_ek))
     )
-    start_by_key = {k: sd for k, sd in ev_rows.all()}
+    start_by_key: dict[str, Optional[datetime]] = {k: sd for k, sd in ev_rows.all()}
+    if tba_events_by_key:
+        for k, payload in tba_events_by_key.items():
+            if k in all_ek and k not in start_by_key:
+                start_by_key[k] = _parse_tba_date(payload.get("start_date"))
+
     return sorted(
         all_ek,
         key=lambda k: (
@@ -266,8 +317,19 @@ async def get_team_season(
     )
     metrics_rows = metrics_result.scalars().all()
 
+    tba_by_key: dict = {}
+    if (get_settings().tba_api_key or "").strip():
+        try:
+            for ev in await get_team_events(team_key, year) or []:
+                k = ev.get("key")
+                if isinstance(k, str) and k.startswith(f"{year}"):
+                    tba_by_key[k] = ev
+        except Exception as e:
+            logger.warning("TBA team events fetch failed for %s %s: %s", team_key, year, e)
+
     event_keys_ordered = await _merge_team_season_event_keys(
         db, team_key, year, metrics_rows,
+        tba_events_by_key=tba_by_key if tba_by_key else None,
     )
 
     matches_by_event = await _match_responses_by_event(
@@ -283,6 +345,9 @@ async def get_team_season(
                 city=e.city, state_prov=e.state_prov, country=e.country,
                 start_date=e.start_date, end_date=e.end_date, week=e.week,
             )
+        for ek in event_keys_ordered:
+            if ek not in event_infos and ek in tba_by_key:
+                event_infos[ek] = _event_response_from_tba(tba_by_key[ek])
 
     metrics_response_list: list[TeamMetricsResponse] = []
     for ek in event_keys_ordered:
