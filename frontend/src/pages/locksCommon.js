@@ -24,6 +24,30 @@ export function sortLocksTeams(teams) {
   return [...impact, ...rest];
 }
 
+/** Impact first, then by WCMP lock % (merit-line sim). */
+export function sortLocksTeamsByWcmp(teams) {
+  if (!teams?.length) return [];
+  const impact = teams.filter(isImpactTeam);
+  const rest = teams.filter((t) => !isImpactTeam(t));
+  impact.sort((a, b) => (b.point_total ?? 0) - (a.point_total ?? 0));
+  rest.sort((a, b) => {
+    const pa = a.wcmp_lock_probability;
+    const pb = b.wcmp_lock_probability;
+    if (pa == null && pb == null) return (b.point_total ?? 0) - (a.point_total ?? 0);
+    if (pa == null) return 1;
+    if (pb == null) return -1;
+    if (pb !== pa) return pb - pa;
+    return (b.point_total ?? 0) - (a.point_total ?? 0);
+  });
+  return [...impact, ...rest];
+}
+
+/** Row colors from WCMP sim bucket (or Impact). */
+export function rowClassWcmp(t, index) {
+  const st = isImpactTeam(t) ? 'impact' : (t.wcmp_status || 'out');
+  return rowClass(st, index);
+}
+
 /** Row styling: first TOP_GREEN_ROWS are green; below that use status bands. Impact keeps accent in top band. */
 export function rowClass(st, index) {
   const parts = ['lock-row'];

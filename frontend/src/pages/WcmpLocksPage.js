@@ -1,219 +1,95 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { sortLocksTeams, rowClass, LockPctCell } from './locksCommon';
+import { sortLocksTeamsByWcmp, rowClassWcmp, LockPctCell } from './locksCommon';
 import './LocksPage.css';
 import './WcmpLocksPage.css';
 
-const FALLBACK_DISCLAIMER =
-  'DCMP field sizes and WCMP merit-slot estimates are approximate. Lock % uses Monte Carlo over ' +
-  'remaining district week points — not a guarantee. Impact teams show Impact instead of %. ' +
-  'Verify with official FIRST / district sources.';
-
-function fullPayloadToBlock(dMeta, full) {
-  return {
-    district_key: full.district_key,
-    name: dMeta.name,
-    dcmp_spots: full.dcmp_spots,
-    wcmp_merit_spots: full.wcmp_merit_spots,
-    calendar_events_incomplete: full.calendar_events_incomplete,
-    calendar_events_total: full.calendar_events_total,
-    lock_uncertainty_multiplier: full.lock_uncertainty_multiplier,
-    teams: full.teams || [],
+function statusLabel(s) {
+  const map = {
+    completed: 'Completed',
+    qualifications: 'Qualifications',
+    pre_event: 'Pre-Event',
+    in_progress: 'In progress',
   };
+  return map[s] || s;
 }
-
-function DistrictLocksSection({ block }) {
-  const sorted = React.useMemo(() => sortLocksTeams(block.teams || []), [block.teams]);
-
-  if (block.error) {
-    return (
-      <section className="card wcmp-district-card">
-        <h2 className="card-header wcmp-district-title">{block.name}</h2>
-        <p className="error-msg wcmp-district-error">{block.error}</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="card wcmp-district-card">
-      <h2 className="card-header wcmp-district-title">{block.name}</h2>
-      <div className="wcmp-district-meta">
-        <span>
-          <span className="lbl">DCMP spots (est.)</span>{' '}
-          <span className="val">{block.dcmp_spots}</span>
-        </span>
-        <span>
-          <span className="lbl">WCMP merit slots (est.)</span>{' '}
-          <span className="val">{block.wcmp_merit_spots}</span>
-        </span>
-        {(block.calendar_events_total ?? 0) > 0 && (
-          <span>
-            <span className="lbl">District week events not finished</span>{' '}
-            <span className="val">
-              {block.calendar_events_incomplete ?? 0} / {block.calendar_events_total}
-            </span>
-          </span>
-        )}
-        {block.lock_uncertainty_multiplier != null && block.lock_uncertainty_multiplier > 1 && (
-          <span title="Wider while district events are still open">
-            <span className="lbl">Uncertainty scale</span>{' '}
-            <span className="val">×{Number(block.lock_uncertainty_multiplier).toFixed(2)}</span>
-          </span>
-        )}
-      </div>
-      <div className="locks-legend locks-legend--compact">
-        <span><span className="lg top50" /> Top 50 (by DCMP lock %)</span>
-        <span><span className="lg clinched" /> ≥~97% sim.</span>
-        <span><span className="lg in-range" /> In range</span>
-        <span><span className="lg bubble" /> Bubble</span>
-        <span><span className="lg out" /> Out</span>
-        <span><span className="lg impact" /> Impact</span>
-      </div>
-      <div className="table-wrapper">
-        <table className="locks-table locks-table-wide">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Team</th>
-              <th>Event 1</th>
-              <th>Event 2</th>
-              <th>Age / adj.</th>
-              <th>Rookie</th>
-              <th>Total</th>
-              <th>DCMP lock %</th>
-              <th title="Approx. merit-based FIRST Championship path via district points">WCMP lock %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((t, index) => (
-              <tr key={t.team_key} className={rowClass(t.status, index)}>
-                <td>{index + 1}</td>
-                <td>
-                  <Link to={`/team/${t.team_key}`} className="team-link">
-                    <span className="team-num">{t.team_number}</span>
-                  </Link>
-                </td>
-                <td>{t.event_1_pts ?? 0}</td>
-                <td>{t.event_2_pts ?? 0}</td>
-                <td>{t.age_adjustment ?? 0}</td>
-                <td>{t.rookie_bonus ?? 0}</td>
-                <td><strong>{t.point_total}</strong></td>
-                <td className="lock-pct-cell">
-                  <LockPctCell t={t} />
-                </td>
-                <td className="lock-pct-cell">
-                  <LockPctCell t={t} wcmp />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-const FETCH_CONCURRENCY = 4;
 
 export default function WcmpLocksPage() {
   const [year, setYear] = useState(new Date().getFullYear());
-  const [blocks, setBlocks] = useState([]);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [districts, setDistricts] = useState([]);
+  const [districtKey, setDistrictKey] = useState('');
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [listError, setListError] = useState(null);
-  const [disclaimer, setDisclaimer] = useState('');
-  const disclaimerCaptured = useRef(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(true);
+  const [error, setError] = useState(null);
 
   const years = [];
   for (let y = new Date().getFullYear() + 1; y >= 2002; y--) years.push(y);
 
   useEffect(() => {
     let cancelled = false;
-    disclaimerCaptured.current = false;
-
     (async () => {
-      setLoading(true);
-      setListError(null);
-      setBlocks([]);
-      setProgress({ done: 0, total: 0 });
-      setDisclaimer('');
-
+      setLoadingDistricts(true);
+      setError(null);
       try {
-        const list = await api.getDistrictsForLocks(year);
-        if (cancelled) return;
-        if (!list.length) {
-          setListError('No districts returned for this season.');
-          setLoading(false);
-          return;
-        }
-
-        setProgress({ done: 0, total: list.length });
-
-        const insertSorted = (block) => {
-          setBlocks((prev) => {
-            const next = [...prev, block];
-            next.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
-            return next;
-          });
-        };
-
-        let nextIndex = 0;
-
-        async function worker() {
-          for (;;) {
-            const i = nextIndex;
-            nextIndex += 1;
-            if (i >= list.length) break;
-            const d = list[i];
-            try {
-              const full = await api.getDistrictLocks(d.key, year);
-              if (cancelled) return;
-              if (!disclaimerCaptured.current && full.disclaimer) {
-                disclaimerCaptured.current = true;
-                setDisclaimer(full.disclaimer);
-              }
-              insertSorted(fullPayloadToBlock(d, full));
-            } catch (e) {
-              if (cancelled) return;
-              insertSorted({
-                district_key: d.key,
-                name: d.name,
-                error: e.message || 'Failed to load this district.',
-                teams: [],
-              });
-            } finally {
-              if (!cancelled) {
-                setProgress((p) => ({ ...p, done: p.done + 1 }));
-              }
-            }
+        const d = await api.getDistrictsForLocks(year);
+        if (!cancelled) {
+          setDistricts(d);
+          if (d.length) {
+            setDistrictKey((prev) => {
+              if (prev && d.some((x) => x.key === prev)) return prev;
+              const pnw = d.find((x) => (x.abbrev || '').toLowerCase() === 'pnw');
+              return (pnw || d[0]).key;
+            });
+          } else {
+            setDistrictKey('');
+            setError('No districts returned for this season on the API (check TBA_API_KEY on the server if unexpected).');
           }
         }
-
-        const nWorkers = Math.min(FETCH_CONCURRENCY, list.length);
-        await Promise.all(Array.from({ length: nWorkers }, () => worker()));
       } catch (e) {
-        if (!cancelled) setListError(e.message || 'Could not load districts.');
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setDistricts([]);
+          setDistrictKey('');
+          setError(e.message || 'Could not load the district list.');
+        }
       }
+      setLoadingDistricts(false);
     })();
-
     return () => { cancelled = true; };
   }, [year]);
 
-  const disc = disclaimer || FALLBACK_DISCLAIMER;
+  const loadLocks = useCallback(async () => {
+    if (!districtKey) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getDistrictLocks(districtKey, year);
+      setData(res);
+    } catch (e) {
+      setError(e.message);
+      setData(null);
+    }
+    setLoading(false);
+  }, [districtKey, year]);
+
+  useEffect(() => {
+    if (districtKey) loadLocks();
+  }, [districtKey, year, loadLocks]);
+
+  const sortedTeams = useMemo(() => sortLocksTeamsByWcmp(data?.teams), [data?.teams]);
 
   return (
     <div className="locks-page wcmp-locks-page">
       <div className="locks-hero">
-        <h1 className="page-title">Locks for WCMP</h1>
+        <h1 className="page-title">WCMP locks</h1>
         <p className="page-subtitle">
-          Each district loads in its own request (several at a time) so the page works behind short API timeouts
-          (e.g. Vercel). Tables appear as data arrives.
+          FIRST Championship (WCMP) focus: total district allocation from published FIRST guidance, plus a
+          merit-line lock % (district points simulation). DCMP % is shown for context. Same data as District
+          Locks, sorted for WCMP.
         </p>
         <p className="locks-pnw-predict-link">
-          <Link to="/locks">Single-district locks</Link>
+          <Link to="/locks">District locks (DCMP + WCMP)</Link>
         </p>
       </div>
 
@@ -221,45 +97,185 @@ export default function WcmpLocksPage() {
         <div className="locks-control-row">
           <label>
             Season
-            <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            <select value={year} onChange={(e) => { setYear(Number(e.target.value)); setDistrictKey(''); }}>
               {years.map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
           </label>
+          <label>
+            District
+            <select
+              value={districtKey}
+              onChange={(e) => setDistrictKey(e.target.value)}
+              disabled={loadingDistricts || !districts.length}
+            >
+              {!districts.length && <option value="">Loading…</option>}
+              {districts.map((d) => (
+                <option key={d.key} value={d.key}>{d.name || d.key}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn btn-secondary" onClick={loadLocks} disabled={loading}>
+            Refresh
+          </button>
         </div>
       </div>
 
-      {listError && <div className="error-msg">{listError}</div>}
+      {error && <div className="error-msg">{error}</div>}
+      {loading && <div className="loading">Loading district data…</div>}
 
-      {loading && progress.total > 0 && (
-        <div className="loading wcmp-loading wcmp-progress">
-          Loading districts… {progress.done} / {progress.total} complete (TBA + server work per district).
-        </div>
-      )}
+      {data && !loading && (
+        <>
+          <div className="card locks-summary">
+            <h2 className="card-header">{data.district_key}</h2>
+            <div className="locks-summary-grid">
+              <div>
+                <span className="lbl">WCMP slots (FIRST, all paths)</span>
+                <span
+                  className="val"
+                  title="Total FIRST Championship slots for this district (Impact, Dean's List, EI, RAS, WFFA, winners, merit, etc.). From built-in table; override via API if needed."
+                >
+                  {data.wcmp_allocated_slots ?? '—'}
+                </span>
+              </div>
+              <div>
+                <span className="lbl">Merit-line sim. cutoff</span>
+                <span
+                  className="val"
+                  title="Rank cutoff used only for WCMP lock % simulation (district points path after typical awards). Lower than allocation total."
+                >
+                  {data.wcmp_merit_sim_spots ?? '—'}
+                </span>
+              </div>
+              <div>
+                <span className="lbl">DCMP spots (est.)</span>
+                <span className="val">{data.dcmp_spots}</span>
+              </div>
+              <div>
+                <span className="lbl">Impact Award teams (district events)</span>
+                <span className="val">{data.impact_award_count}</span>
+              </div>
+              <div>
+                <span className="lbl">Points remaining (rough hint)</span>
+                <span className="val">{data.estimated_points_remaining_hint}</span>
+              </div>
+              {data.calendar_events_total > 0 && (
+                <div>
+                  <span className="lbl">District events not finished (TBA)</span>
+                  <span className="val">
+                    {data.calendar_events_incomplete ?? 0} / {data.calendar_events_total}
+                  </span>
+                </div>
+              )}
+              {data.lock_uncertainty_multiplier != null && data.lock_uncertainty_multiplier > 1 && (
+                <div>
+                  <span className="lbl">Lock sim. uncertainty scale</span>
+                  <span className="val" title="Wider while district events are still open">
+                    ×{Number(data.lock_uncertainty_multiplier).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="locks-disclaimer">{data.disclaimer}</p>
+          </div>
 
-      {loading && progress.total === 0 && !listError && (
-        <div className="loading wcmp-loading">
-          Fetching district list…
-        </div>
-      )}
+          <div className="card">
+            <div className="card-header">District events</div>
+            <div className="table-wrapper">
+              <table className="locks-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Teams</th>
+                    <th>Impact at event</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.events || []).map((ev) => (
+                    <tr key={ev.event_key} className={`ev-status-${ev.status}`}>
+                      <td>
+                        <Link to={`/event/${ev.event_key}`}>{ev.name}</Link>
+                        <span className="ev-key">{ev.event_key}</span>
+                      </td>
+                      <td>{statusLabel(ev.status)}</td>
+                      <td>{ev.team_count || '—'}</td>
+                      <td>
+                        {ev.impact_winners?.length
+                          ? ev.impact_winners.map((t) => t.replace('frc', '')).join(', ')
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {blocks.length > 0 && (
-        <div className="wcmp-district-list">
-          {blocks.map((block) => (
-            <DistrictLocksSection key={block.district_key} block={block} />
-          ))}
-        </div>
-      )}
+          <div className="card">
+            <div className="card-header">Rankings &amp; WCMP lock %</div>
+            <div className="locks-legend">
+              <span><span className="lg top50" /> Top 50 (by WCMP lock %, Impact first)</span>
+              <span><span className="lg clinched" /> ≥~97% sim.</span>
+              <span><span className="lg in-range" /> In range</span>
+              <span><span className="lg bubble" /> Bubble</span>
+              <span><span className="lg out" /> Out</span>
+              <span><span className="lg impact" /> Impact Award</span>
+            </div>
+            <div className="table-wrapper">
+              <table className="locks-table locks-table-wide">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Team</th>
+                    <th>Event 1</th>
+                    <th>Event 2</th>
+                    <th>Age / adj.</th>
+                    <th>Rookie</th>
+                    <th>Total</th>
+                    <th title="Merit-line simulation (district points path)">WCMP lock %</th>
+                    <th title="District Championship field estimate">DCMP lock %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTeams.map((t, index) => (
+                    <tr key={t.team_key} className={rowClassWcmp(t, index)}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <Link to={`/team/${t.team_key}`} className="team-link">
+                          <span className="team-num">{t.team_number}</span>
+                        </Link>
+                      </td>
+                      <td>{t.event_1_pts ?? 0}</td>
+                      <td>{t.event_2_pts ?? 0}</td>
+                      <td>{t.age_adjustment ?? 0}</td>
+                      <td>{t.rookie_bonus ?? 0}</td>
+                      <td><strong>{t.point_total}</strong></td>
+                      <td className="lock-pct-cell">
+                        <LockPctCell t={t} wcmp />
+                      </td>
+                      <td className="lock-pct-cell">
+                        <LockPctCell t={t} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {!loading && !listError && blocks.length === 0 && progress.total === 0 && (
-        <div className="loading wcmp-loading">No data.</div>
-      )}
-
-      {!loading && progress.total > 0 && !listError && (
-        <div className="card locks-summary wcmp-global-disclaimer">
-          <p className="locks-disclaimer">{disc}</p>
-        </div>
+          {data.impact_award_teams?.length > 0 && (
+            <div className="card locks-impact-list">
+              <div className="card-header">Impact Award winners (tracked)</div>
+              <p className="impact-tags">
+                {data.impact_award_teams.map((tk) => (
+                  <Link key={tk} to={`/team/${tk}`} className="impact-tag">{tk.replace('frc', '')}</Link>
+                ))}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

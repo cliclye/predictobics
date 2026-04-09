@@ -87,7 +87,7 @@ export default function LocksPage() {
           Separate from EPA predictions.
         </p>
         <p className="locks-pnw-predict-link">
-          <Link to="/locks/wcmp">All districts — WCMP locks (every district model)</Link>
+          <Link to="/locks/wcmp">WCMP locks (FIRST Championship — pick district)</Link>
         </p>
         {(districtKey || '').toLowerCase().includes('pnw') && (
           <p className="locks-pnw-predict-link">
@@ -138,9 +138,15 @@ export default function LocksPage() {
                 <span className="val">{data.dcmp_spots}</span>
               </div>
               <div>
-                <span className="lbl">WCMP merit slots (est.)</span>
-                <span className="val" title="Approx. district-points slots to FIRST Championship after typical DCMP awards">
-                  {data.wcmp_merit_spots ?? '—'}
+                <span className="lbl">WCMP slots (FIRST, all paths)</span>
+                <span className="val" title="Total FIRST Championship allocation for this district">
+                  {data.wcmp_allocated_slots ?? '—'}
+                </span>
+              </div>
+              <div>
+                <span className="lbl">WCMP merit sim. cutoff</span>
+                <span className="val" title="Rank cutoff for WCMP lock % simulation (district points only)">
+                  {data.wcmp_merit_sim_spots ?? '—'}
                 </span>
               </div>
               <div>

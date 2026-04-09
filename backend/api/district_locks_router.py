@@ -26,18 +26,19 @@ from backend.metrics.district_locks import (
     calendar_uncertainty_multiplier,
     estimate_lock_probabilities,
     get_dcmp_spots_for_district,
-    get_wcmp_merit_spots_for_district,
+    get_wcmp_allocated_slots_for_district,
+    get_wcmp_merit_sim_cutoff_for_district,
     merge_locks_into_rankings,
 )
 
 logger = logging.getLogger(__name__)
 
 _LOCKS_DISCLAIMER = (
-    "DCMP field sizes and WCMP merit-slot estimates are approximate (see FIRST Game Manual "
-    "Championship allocation; WCMP uses a rough reserve for DCMP winners and common awards). "
-    "Lock %% uses the same Monte Carlo over remaining district week points; uncertainty scales "
-    "up while district *week* events (not District Championship) are still in progress — not a "
-    "guarantee. WCMP %% ignores Regional paths and is not a full qualification model. "
+    "DCMP field sizes are approximate. WCMP \"allocation\" is the district's total FIRST Championship "
+    "slot count from published eligibility guidance (all paths). WCMP lock %% uses a separate "
+    "merit-line rank cutoff in simulation (district points only — after typical award pathways), "
+    "so it is not P(qualify by any path). Same Monte Carlo over remaining district week points; "
+    "uncertainty scales while district week events are unfinished. Not a guarantee. "
     "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
 )
 
@@ -150,7 +151,8 @@ async def _district_locks_payload_impl(
     dkey: str,
     year: int,
     dcmp_spots_override: Optional[int],
-    wcmp_merit_spots_override: Optional[int],
+    wcmp_allocated_override: Optional[int],
+    wcmp_merit_sim_override: Optional[int],
     n_simulations: int,
 ) -> dict[str, Any]:
     """Build full district locks JSON. Raises ValueError if TBA has no rankings for this district."""
@@ -167,7 +169,8 @@ async def _district_locks_payload_impl(
         rankings_raw = (rank_data.get("rankings") or []) if isinstance(rank_data, dict) else []
 
     spots = get_dcmp_spots_for_district(dkey, dcmp_spots_override)
-    wcmp_spots = get_wcmp_merit_spots_for_district(dkey, wcmp_merit_spots_override)
+    wcmp_allocated = get_wcmp_allocated_slots_for_district(dkey, wcmp_allocated_override)
+    wcmp_sim_cutoff = get_wcmp_merit_sim_cutoff_for_district(dkey, wcmp_merit_sim_override)
 
     devents = await get_district_events_list(dkey, year)
     events_out: list[dict[str, Any]] = []
@@ -237,7 +240,7 @@ async def _district_locks_payload_impl(
         n_simulations=n_simulations,
         calendar_events_incomplete=calendar_incomplete,
         calendar_events_total=calendar_total,
-        wcmp_merit_spots=wcmp_spots,
+        wcmp_merit_spots=wcmp_sim_cutoff,
     )
     merged = merge_locks_into_rankings(rankings_raw, lock_rows)
 
@@ -282,7 +285,8 @@ async def _district_locks_payload_impl(
         "district_key": dkey,
         "year": year,
         "dcmp_spots": spots,
-        "wcmp_merit_spots": wcmp_spots,
+        "wcmp_allocated_slots": wcmp_allocated,
+        "wcmp_merit_sim_spots": wcmp_sim_cutoff,
         "impact_award_teams": sorted(impact_teams),
         "impact_award_count": len(impact_teams),
         "estimated_points_remaining_hint": total_pts_available,
@@ -370,6 +374,7 @@ async def all_districts_wcmp_locks(
                     year,
                     None,
                     None,
+                    None,
                     n_simulations,
                 )
                 return {
@@ -377,7 +382,8 @@ async def all_districts_wcmp_locks(
                     "name": dname,
                     "abbrev": dm.get("abbrev"),
                     "dcmp_spots": full["dcmp_spots"],
-                    "wcmp_merit_spots": full["wcmp_merit_spots"],
+                    "wcmp_allocated_slots": full["wcmp_allocated_slots"],
+                    "wcmp_merit_sim_spots": full["wcmp_merit_sim_spots"],
                     "calendar_events_incomplete": full["calendar_events_incomplete"],
                     "calendar_events_total": full["calendar_events_total"],
                     "lock_uncertainty_multiplier": full["lock_uncertainty_multiplier"],
@@ -448,10 +454,13 @@ async def get_district_locks(
         None,
         description="Override DCMP field size for this district (from FIRST)",
     ),
+    wcmp_allocated_spots: Optional[int] = Query(
+        None,
+        description="Override district's total FIRST Championship slot allocation (all paths)",
+    ),
     wcmp_merit_spots: Optional[int] = Query(
         None,
-        description="Override estimated merit-based FIRST Championship slots filled via "
-        "district-points order (after typical DCMP award paths)",
+        description="Override Monte Carlo merit-line rank cutoff (district points only; not allocation total)",
     ),
     n_simulations: int = Query(8000, ge=2000, le=25000),
 ):
@@ -461,7 +470,12 @@ async def get_district_locks(
     dkey = _normalize_district_key(district_key, year)
     try:
         return await _district_locks_payload_impl(
-            dkey, year, dcmp_spots, wcmp_merit_spots, n_simulations
+            dkey,
+            year,
+            dcmp_spots,
+            wcmp_allocated_spots,
+            wcmp_merit_spots,
+            n_simulations,
         )
     except ValueError as e:
         raise HTTPException(404, str(e)) from e

@@ -57,31 +57,56 @@ def get_dcmp_spots_for_district(district_key: str, override: Optional[int] = Non
     return DEFAULT_DCMP_SPOTS.get(ab, 48)
 
 
-# Approximate merit-based FIRST Championship slots filled via final district-points order,
-# after reserving ~9 slots for typical DCMP winners / Impact / Dean's List / EI / RAS / WFFA paths.
-# Based on FIRST Game Manual Table 11-8 style allocations (~2025); tune yearly.
-DEFAULT_WCMP_MERIT_SPOTS: dict[str, int] = {
-    "pnw": 13,
-    "fim": 71,
-    "ne": 22,
-    "chs": 8,
-    "in": 4,
-    "isr": 4,
-    "fma": 14,
-    "fnc": 5,
-    "fit": 19,
-    "fin": 4,
-    "fsc": 4,
-    "pch": 4,
-    "ont": 13,
+# Total FIRST Championship slots allocated to each district (awards + merit paths combined).
+# Align with FIRST Championship eligibility / Game Manual style tables (~2025–2026); tune yearly.
+DEFAULT_WCMP_ALLOCATED_SLOTS: dict[str, int] = {
+    "pnw": 21,
+    "fim": 83,
+    "ne": 32,
+    "chs": 19,
+    "in": 12,
+    "isr": 12,
+    "fma": 23,
+    "fnc": 15,
+    "fit": 28,
+    "fin": 12,
+    "fsc": 7,
+    "pch": 13,
+    "ont": 21,
 }
 
 
-def get_wcmp_merit_spots_for_district(district_key: str, override: Optional[int] = None) -> int:
+def get_wcmp_allocated_slots_for_district(district_key: str, override: Optional[int] = None) -> int:
     if override is not None and override > 0:
         return int(override)
     ab = abbrev_from_district_key(district_key)
-    return DEFAULT_WCMP_MERIT_SPOTS.get(ab, 8)
+    return DEFAULT_WCMP_ALLOCATED_SLOTS.get(ab, 16)
+
+
+# Monte Carlo rank cutoff for the *district-points merit line only* (slots filled after typical
+# Impact / Dean's List / EI / RAS / WFFA / alliance awards). Not equal to allocation total.
+DEFAULT_WCMP_MERIT_SIM_CUTOFF: dict[str, int] = {
+    "pnw": 10,
+    "fim": 70,
+    "ne": 20,
+    "chs": 8,
+    "in": 4,
+    "isr": 4,
+    "fma": 12,
+    "fnc": 5,
+    "fit": 17,
+    "fin": 4,
+    "fsc": 4,
+    "pch": 4,
+    "ont": 10,
+}
+
+
+def get_wcmp_merit_sim_cutoff_for_district(district_key: str, override: Optional[int] = None) -> int:
+    if override is not None and override > 0:
+        return int(override)
+    ab = abbrev_from_district_key(district_key)
+    return DEFAULT_WCMP_MERIT_SIM_CUTOFF.get(ab, 8)
 
 
 def _team_event_slots_used(rank_row: dict) -> tuple[int, list[dict]]:
@@ -155,8 +180,8 @@ def estimate_lock_probabilities(
     status is not *completed*) widen the simulation when the district season is still in
     progress, so lock % reflects unknown outcomes at not-yet-finished events.
 
-    When ``wcmp_merit_spots`` is set, the same draws also estimate P(rank <= that cutoff)
-    for approximate FIRST Championship qualification via district-points order (merit path).
+    When ``wcmp_merit_spots`` is set (merit-line rank cutoff), the same draws also estimate
+    P(rank <= that cutoff) for the district-points merit path to Championship (not total allocation).
     """
     if not rankings or dcmp_spots < 1:
         return []

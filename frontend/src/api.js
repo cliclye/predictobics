@@ -181,6 +181,7 @@ export const api = {
   getDistrictLocks: (districtKey, year, opts = {}) => {
     const q = new URLSearchParams();
     if (opts.dcmpSpots != null) q.set('dcmp_spots', String(opts.dcmpSpots));
+    if (opts.wcmpAllocatedSpots != null) q.set('wcmp_allocated_spots', String(opts.wcmpAllocatedSpots));
     if (opts.wcmpMeritSpots != null) q.set('wcmp_merit_spots', String(opts.wcmpMeritSpots));
     const suffix = q.toString() ? `?${q}` : '';
     return fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}${suffix}`);
