@@ -1,7 +1,7 @@
 {
   "name": "predictobics",
   "private": true,
-  "description": "Monorepo root — Vercel build runs the React app in /frontend",
+  "description": "Monorepo root — Vercel: use repo root as project root, set BACKEND_ORIGIN to your FastAPI URL, or REACT_APP_API_URL at build time. See .env.example.",
   "license": "MIT",
   "engines": {
     "node": ">=18"

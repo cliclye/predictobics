@@ -11,8 +11,9 @@ function apiUnreachableHelp() {
   }
   if (isRelative) {
     return (
-      'Cannot reach the API. Serve the app from the same host as the FastAPI app (it mounts /api), ' +
-      'or set REACT_APP_API_URL to your API base URL (e.g. https://your-api.example.com/api).'
+      'Cannot reach the API. On Vercel, set environment variable BACKEND_ORIGIN to your FastAPI origin ' +
+      '(HTTPS, no /api suffix), or build with REACT_APP_API_URL pointing at your API. ' +
+      'Otherwise serve the app from the same host as FastAPI, or set REACT_APP_API_URL.'
     );
   }
   return `Cannot reach the API at ${BASE}. Check that the server is up and CORS allows this origin.`;
