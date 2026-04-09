@@ -140,10 +140,10 @@ export default function WcmpLocksPage() {
                 </span>
               </div>
               <div>
-                <span className="lbl">Merit-line sim. cutoff</span>
+                <span className="lbl">WCMP sim rank cutoff</span>
                 <span
                   className="val"
-                  title="Rank cutoff used only for WCMP lock % simulation (district points path after typical awards). Lower than allocation total."
+                  title="Rank cutoff for WCMP lock % simulation (defaults to FIRST Championship slot count for this district). Override via API if needed."
                 >
                   {data.wcmp_merit_sim_spots ?? '—'}
                 </span>
@@ -216,7 +216,15 @@ export default function WcmpLocksPage() {
           <div className="card">
             <div className="card-header">Rankings &amp; WCMP lock %</div>
             <div className="locks-legend">
-              <span><span className="lg top50" /> Top 50 (by WCMP lock %, Impact first)</span>
+              <span>
+                <span className="lg top50" />
+                {' '}
+                Top
+                {' '}
+                {data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots ?? '—'}
+                {' '}
+                by district rank (WCMP slot band; Impact in band highlighted)
+              </span>
               <span><span className="lg clinched" /> ≥~97% sim.</span>
               <span><span className="lg in-range" /> In range</span>
               <span><span className="lg bubble" /> Bubble</span>
@@ -240,8 +248,8 @@ export default function WcmpLocksPage() {
                 </thead>
                 <tbody>
                   {sortedTeams.map((t, index) => (
-                    <tr key={t.team_key} className={rowClassWcmp(t, index)}>
-                      <td>{index + 1}</td>
+                    <tr key={t.team_key} className={rowClassWcmp(t, data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots)}>
+                      <td>{t.rank ?? index + 1}</td>
                       <td>
                         <Link to={`/team/${t.team_key}`} className="team-link">
                           <span className="team-num">{t.team_number}</span>

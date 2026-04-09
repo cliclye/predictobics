@@ -42,10 +42,24 @@ export function sortLocksTeamsByWcmp(teams) {
   return [...impact, ...rest];
 }
 
-/** Row colors from WCMP sim bucket (or Impact). */
-export function rowClassWcmp(t, index) {
+/**
+ * WCMP table: green band = official district rank within WCMP slot count (not “top 50 by lock %” like DCMP page).
+ */
+export function rowClassWcmp(t, wcmpRankCutoff) {
   const st = isImpactTeam(t) ? 'impact' : (t.wcmp_status || 'out');
-  return rowClass(st, index);
+  const r = t.rank;
+  const k = wcmpRankCutoff != null && Number(wcmpRankCutoff) > 0 ? Number(wcmpRankCutoff) : null;
+  const inAllocationBand = k != null && r != null && r <= k;
+  if (inAllocationBand) {
+    const parts = ['lock-row', 'locks-row-top50'];
+    if (st === 'impact') parts.push('impact-row');
+    return parts.join(' ');
+  }
+  if (st === 'impact') return 'lock-row impact-row';
+  if (st === 'clinched') return 'lock-row clinched';
+  if (st === 'in_range') return 'lock-row in-range';
+  if (st === 'bubble') return 'lock-row bubble';
+  return 'lock-row out';
 }
 
 /** Row styling: first TOP_GREEN_ROWS are green; below that use status bands. Impact keeps accent in top band. */

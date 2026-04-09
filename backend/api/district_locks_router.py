@@ -27,7 +27,6 @@ from backend.metrics.district_locks import (
     estimate_lock_probabilities,
     get_dcmp_spots_for_district,
     get_wcmp_allocated_slots_for_district,
-    get_wcmp_merit_sim_cutoff_for_district,
     merge_locks_into_rankings,
 )
 
@@ -35,10 +34,10 @@ logger = logging.getLogger(__name__)
 
 _LOCKS_DISCLAIMER = (
     "DCMP field sizes are approximate. WCMP \"allocation\" is the district's total FIRST Championship "
-    "slot count from published eligibility guidance (all paths). WCMP lock %% uses a separate "
-    "merit-line rank cutoff in simulation (district points only — after typical award pathways), "
-    "so it is not P(qualify by any path). Same Monte Carlo over remaining district week points; "
-    "uncertainty scales while district week events are unfinished. Not a guarantee. "
+    "slot count from published eligibility guidance (all paths). By default, WCMP lock %% simulates "
+    "P(rank within that many teams by district points after remaining weeks; not P(qualify by any path). "
+    "Override ``wcmp_merit_spots`` for a different rank cutoff. Same Monte Carlo over remaining district "
+    "week points; uncertainty scales while district week events are unfinished. Not a guarantee. "
     "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
 )
 
@@ -170,7 +169,10 @@ async def _district_locks_payload_impl(
 
     spots = get_dcmp_spots_for_district(dkey, dcmp_spots_override)
     wcmp_allocated = get_wcmp_allocated_slots_for_district(dkey, wcmp_allocated_override)
-    wcmp_sim_cutoff = get_wcmp_merit_sim_cutoff_for_district(dkey, wcmp_merit_sim_override)
+    if wcmp_merit_sim_override is not None and int(wcmp_merit_sim_override) > 0:
+        wcmp_sim_cutoff = int(wcmp_merit_sim_override)
+    else:
+        wcmp_sim_cutoff = wcmp_allocated
 
     devents = await get_district_events_list(dkey, year)
     events_out: list[dict[str, Any]] = []
@@ -316,6 +318,7 @@ def _slim_teams_for_wcmp_page(teams: list[dict[str, Any]]) -> list[dict[str, Any
                 "lock_display": t.get("lock_display"),
                 "wcmp_lock_probability": t.get("wcmp_lock_probability"),
                 "wcmp_lock_display": t.get("wcmp_lock_display"),
+                "wcmp_status": t.get("wcmp_status"),
                 "status": t.get("status"),
             }
         )
@@ -460,7 +463,7 @@ async def get_district_locks(
     ),
     wcmp_merit_spots: Optional[int] = Query(
         None,
-        description="Override Monte Carlo merit-line rank cutoff (district points only; not allocation total)",
+        description="Override WCMP lock %% rank cutoff (defaults to district's FIRST Championship slot count)",
     ),
     n_simulations: int = Query(8000, ge=2000, le=25000),
 ):

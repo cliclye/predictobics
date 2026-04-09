@@ -144,8 +144,11 @@ export default function LocksPage() {
                 </span>
               </div>
               <div>
-                <span className="lbl">WCMP merit sim. cutoff</span>
-                <span className="val" title="Rank cutoff for WCMP lock % simulation (district points only)">
+                <span className="lbl">WCMP sim rank cutoff</span>
+                <span
+                  className="val"
+                  title="Rank cutoff for WCMP lock % (defaults to FIRST Championship slot count; override via API)"
+                >
                   {data.wcmp_merit_sim_spots ?? '—'}
                 </span>
               </div>
