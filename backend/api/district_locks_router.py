@@ -6,6 +6,7 @@ Separate from EPA/predictions; uses district rankings + Monte Carlo.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any, Optional
@@ -69,8 +70,7 @@ def _match_alliance_scores(m: dict) -> tuple[Optional[int], Optional[int]]:
     return rs, bs
 
 
-async def _event_status(event_key: str) -> str:
-    matches = await get_event_matches(event_key)
+def _event_status_from_matches(matches: list) -> str:
     if not matches:
         return "pre_event"
     qm = [m for m in matches if m.get("comp_level") == "qm"]
@@ -87,6 +87,11 @@ async def _event_status(event_key: str) -> str:
     if played_n > 0:
         return "qualifications"
     return "pre_event"
+
+
+async def _event_status(event_key: str) -> str:
+    matches = await get_event_matches(event_key)
+    return _event_status_from_matches(matches or [])
 
 
 def _is_impact_award(award: dict) -> bool:
@@ -122,10 +127,9 @@ def _point_breakdown(row: dict) -> dict[str, int]:
     }
 
 
-async def _count_impact_teams_for_event(event_key: str) -> list[str]:
-    awards = await get_event_awards(event_key)
+def _impact_teams_from_awards(awards: list | None) -> list[str]:
     teams: list[str] = []
-    for a in awards:
+    for a in awards or []:
         if not _is_impact_award(a):
             continue
         for rec in a.get("recipient_list") or []:
@@ -135,6 +139,11 @@ async def _count_impact_teams_for_event(event_key: str) -> list[str]:
             elif isinstance(aw, dict) and aw.get("team_key"):
                 teams.append(aw["team_key"])
     return teams
+
+
+async def _count_impact_teams_for_event(event_key: str) -> list[str]:
+    awards = await get_event_awards(event_key)
+    return _impact_teams_from_awards(awards)
 
 
 async def _district_locks_payload_impl(
@@ -167,40 +176,58 @@ async def _district_locks_payload_impl(
     calendar_incomplete = 0
     calendar_total = 0
 
-    for ev in devents:
+    ev_sem = asyncio.Semaphore(8)
+
+    async def _enrich_one_district_event(ev: dict) -> Optional[dict[str, Any]]:
         ek = ev.get("key")
         if not ek:
-            continue
+            return None
+        async with ev_sem:
+            matches, awards = await asyncio.gather(
+                get_event_matches(ek),
+                get_event_awards(ek),
+            )
         name = ev.get("name") or ek
         n_teams = int(ev.get("team_count") or len(ev.get("teams", []) or []) or 0)
-        status = await _event_status(ek)
-        if status != "completed" and n_teams > 0:
-            total_pts_available += int(22 * n_teams)
-
-        im = await _count_impact_teams_for_event(ek)
-        for t in im:
-            impact_teams.add(t)
-
+        status = _event_status_from_matches(matches or [])
+        im = _impact_teams_from_awards(awards or [])
         et = ev.get("event_type")
         try:
             is_district_cmp = int(et) == 2 if et is not None else False
         except (TypeError, ValueError):
             is_district_cmp = False
         counts_for_calendar = not is_district_cmp
+        pts_hint = int(22 * n_teams) if status != "completed" and n_teams > 0 else 0
+        return {
+            "event_key": ek,
+            "name": name,
+            "status": status,
+            "team_count": n_teams,
+            "impact_winners": im,
+            "counts_for_lock_calendar": counts_for_calendar,
+            "pts_hint": pts_hint,
+        }
 
+    enriched = await asyncio.gather(*[_enrich_one_district_event(ev) for ev in devents])
+    for row in enriched:
+        if row is None:
+            continue
         events_out.append(
             {
-                "event_key": ek,
-                "name": name,
-                "status": status,
-                "team_count": n_teams,
-                "impact_winners": im,
-                "counts_for_lock_calendar": counts_for_calendar,
+                "event_key": row["event_key"],
+                "name": row["name"],
+                "status": row["status"],
+                "team_count": row["team_count"],
+                "impact_winners": row["impact_winners"],
+                "counts_for_lock_calendar": row["counts_for_lock_calendar"],
             }
         )
-        if counts_for_calendar:
+        for t in row["impact_winners"]:
+            impact_teams.add(t)
+        total_pts_available += int(row["pts_hint"])
+        if row["counts_for_lock_calendar"]:
             calendar_total += 1
-            if (status or "") != "completed":
+            if (row["status"] or "") != "completed":
                 calendar_incomplete += 1
     uncertainty_mult = calendar_uncertainty_multiplier(calendar_incomplete, calendar_total)
 
@@ -314,8 +341,9 @@ async def all_districts_wcmp_locks(
     n_simulations: int = Query(8000, ge=2000, le=25000),
 ):
     """
-    WCMP-focused bundle: every district model team for the season with DCMP + WCMP lock %%,
-    one district after another (TBA-friendly). Must stay above ``/{district_key}/{year}``.
+    WCMP-focused bundle: all district-model districts (DCMP + WCMP lock %%).
+    Districts run in parallel with a small semaphore to limit TBA load; order matches ``districts_meta``.
+    Prefer the browser calling ``/{district_key}/{year}`` per district for long Vercel timeouts.
     """
     raw = await get_districts_for_year(year)
     districts_meta: list[dict[str, Any]] = []
@@ -330,20 +358,21 @@ async def all_districts_wcmp_locks(
             )
     districts_meta.sort(key=lambda x: x.get("name") or "")
 
-    results: list[dict[str, Any]] = []
-    for dm in districts_meta:
+    dist_sem = asyncio.Semaphore(3)
+
+    async def _one(dm: dict[str, Any]) -> dict[str, Any]:
         dkey = dm["key"]
         dname = dm["name"]
-        try:
-            full = await _district_locks_payload_impl(
-                dkey,
-                year,
-                None,
-                None,
-                n_simulations,
-            )
-            results.append(
-                {
+        async with dist_sem:
+            try:
+                full = await _district_locks_payload_impl(
+                    dkey,
+                    year,
+                    None,
+                    None,
+                    n_simulations,
+                )
+                return {
                     "district_key": full["district_key"],
                     "name": dname,
                     "abbrev": dm.get("abbrev"),
@@ -355,29 +384,28 @@ async def all_districts_wcmp_locks(
                     "teams": _slim_teams_for_wcmp_page(full["teams"]),
                     "error": None,
                 }
-            )
-        except ValueError as e:
-            logger.warning("district locks skipped for %s: %s", dkey, e)
-            results.append(
-                {
+            except ValueError as e:
+                logger.warning("district locks skipped for %s: %s", dkey, e)
+                return {
                     "district_key": dkey,
                     "name": dname,
                     "abbrev": dm.get("abbrev"),
                     "error": str(e),
                     "teams": [],
                 }
-            )
-        except Exception as e:
-            logger.exception("district locks failed for %s", dkey)
-            results.append(
-                {
+            except Exception as e:
+                logger.exception("district locks failed for %s", dkey)
+                return {
                     "district_key": dkey,
                     "name": dname,
                     "abbrev": dm.get("abbrev"),
                     "error": f"Server error while loading district: {e!s}",
                     "teams": [],
                 }
-            )
+
+    results: list[dict[str, Any]] = list(
+        await asyncio.gather(*[_one(dm) for dm in districts_meta])
+    )
 
     return {
         "year": year,

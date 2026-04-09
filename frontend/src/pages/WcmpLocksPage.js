@@ -1,12 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { sortLocksTeams, rowClass, LockPctCell } from './locksCommon';
 import './LocksPage.css';
 import './WcmpLocksPage.css';
 
+const FALLBACK_DISCLAIMER =
+  'DCMP field sizes and WCMP merit-slot estimates are approximate. Lock % uses Monte Carlo over ' +
+  'remaining district week points — not a guarantee. Impact teams show Impact instead of %. ' +
+  'Verify with official FIRST / district sources.';
+
+function fullPayloadToBlock(dMeta, full) {
+  return {
+    district_key: full.district_key,
+    name: dMeta.name,
+    dcmp_spots: full.dcmp_spots,
+    wcmp_merit_spots: full.wcmp_merit_spots,
+    calendar_events_incomplete: full.calendar_events_incomplete,
+    calendar_events_total: full.calendar_events_total,
+    lock_uncertainty_multiplier: full.lock_uncertainty_multiplier,
+    teams: full.teams || [],
+  };
+}
+
 function DistrictLocksSection({ block }) {
-  const sorted = useMemo(() => sortLocksTeams(block.teams || []), [block.teams]);
+  const sorted = React.useMemo(() => sortLocksTeams(block.teams || []), [block.teams]);
 
   if (block.error) {
     return (
@@ -29,7 +47,7 @@ function DistrictLocksSection({ block }) {
           <span className="lbl">WCMP merit slots (est.)</span>{' '}
           <span className="val">{block.wcmp_merit_spots}</span>
         </span>
-        {block.calendar_events_total > 0 && (
+        {(block.calendar_events_total ?? 0) > 0 && (
           <span>
             <span className="lbl">District week events not finished</span>{' '}
             <span className="val">
@@ -96,39 +114,103 @@ function DistrictLocksSection({ block }) {
   );
 }
 
+const FETCH_CONCURRENCY = 4;
+
 export default function WcmpLocksPage() {
   const [year, setYear] = useState(new Date().getFullYear());
-  const [data, setData] = useState(null);
+  const [blocks, setBlocks] = useState([]);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [listError, setListError] = useState(null);
+  const [disclaimer, setDisclaimer] = useState('');
+  const disclaimerCaptured = useRef(false);
 
   const years = [];
   for (let y = new Date().getFullYear() + 1; y >= 2002; y--) years.push(y);
 
   useEffect(() => {
     let cancelled = false;
+    disclaimerCaptured.current = false;
+
     (async () => {
       setLoading(true);
-      setError(null);
-      setData(null);
+      setListError(null);
+      setBlocks([]);
+      setProgress({ done: 0, total: 0 });
+      setDisclaimer('');
+
       try {
-        const res = await api.getAllDistrictsWcmpLocks(year);
-        if (!cancelled) setData(res);
+        const list = await api.getDistrictsForLocks(year);
+        if (cancelled) return;
+        if (!list.length) {
+          setListError('No districts returned for this season.');
+          setLoading(false);
+          return;
+        }
+
+        setProgress({ done: 0, total: list.length });
+
+        const insertSorted = (block) => {
+          setBlocks((prev) => {
+            const next = [...prev, block];
+            next.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+            return next;
+          });
+        };
+
+        let nextIndex = 0;
+
+        async function worker() {
+          for (;;) {
+            const i = nextIndex;
+            nextIndex += 1;
+            if (i >= list.length) break;
+            const d = list[i];
+            try {
+              const full = await api.getDistrictLocks(d.key, year);
+              if (cancelled) return;
+              if (!disclaimerCaptured.current && full.disclaimer) {
+                disclaimerCaptured.current = true;
+                setDisclaimer(full.disclaimer);
+              }
+              insertSorted(fullPayloadToBlock(d, full));
+            } catch (e) {
+              if (cancelled) return;
+              insertSorted({
+                district_key: d.key,
+                name: d.name,
+                error: e.message || 'Failed to load this district.',
+                teams: [],
+              });
+            } finally {
+              if (!cancelled) {
+                setProgress((p) => ({ ...p, done: p.done + 1 }));
+              }
+            }
+          }
+        }
+
+        const nWorkers = Math.min(FETCH_CONCURRENCY, list.length);
+        await Promise.all(Array.from({ length: nWorkers }, () => worker()));
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Could not load WCMP locks.');
+        if (!cancelled) setListError(e.message || 'Could not load districts.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (!cancelled) setLoading(false);
     })();
+
     return () => { cancelled = true; };
   }, [year]);
+
+  const disc = disclaimer || FALLBACK_DISCLAIMER;
 
   return (
     <div className="locks-page wcmp-locks-page">
       <div className="locks-hero">
         <h1 className="page-title">Locks for WCMP</h1>
         <p className="page-subtitle">
-          Every district-model district on one page: the same DCMP and WCMP lock estimates as the single-district
-          Locks view (district points + Monte Carlo, The Blue Alliance). Loading all districts can take a little while.
+          Each district loads in its own request (several at a time) so the page works behind short API timeouts
+          (e.g. Vercel). Tables appear as data arrives.
         </p>
         <p className="locks-pnw-predict-link">
           <Link to="/locks">Single-district locks</Link>
@@ -148,26 +230,36 @@ export default function WcmpLocksPage() {
         </div>
       </div>
 
-      {error && <div className="error-msg">{error}</div>}
-      {loading && (
-        <div className="loading wcmp-loading">
-          Loading all districts from the API (sequential TBA calls — often 30s–2m)…
+      {listError && <div className="error-msg">{listError}</div>}
+
+      {loading && progress.total > 0 && (
+        <div className="loading wcmp-loading wcmp-progress">
+          Loading districts… {progress.done} / {progress.total} complete (TBA + server work per district).
         </div>
       )}
 
-      {data && !loading && (
-        <>
-          <div className="wcmp-district-list">
-            {data.districts?.map((block) => (
-              <DistrictLocksSection key={block.district_key} block={block} />
-            ))}
-          </div>
-          {data.disclaimer && (
-            <div className="card locks-summary wcmp-global-disclaimer">
-              <p className="locks-disclaimer">{data.disclaimer}</p>
-            </div>
-          )}
-        </>
+      {loading && progress.total === 0 && !listError && (
+        <div className="loading wcmp-loading">
+          Fetching district list…
+        </div>
+      )}
+
+      {blocks.length > 0 && (
+        <div className="wcmp-district-list">
+          {blocks.map((block) => (
+            <DistrictLocksSection key={block.district_key} block={block} />
+          ))}
+        </div>
+      )}
+
+      {!loading && !listError && blocks.length === 0 && progress.total === 0 && (
+        <div className="loading wcmp-loading">No data.</div>
+      )}
+
+      {!loading && progress.total > 0 && !listError && (
+        <div className="card locks-summary wcmp-global-disclaimer">
+          <p className="locks-disclaimer">{disc}</p>
+        </div>
       )}
     </div>
   );

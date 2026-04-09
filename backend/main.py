@@ -30,11 +30,29 @@ logger = logging.getLogger(__name__)
 REFRESH_INTERVAL = 120
 
 
-def _cors_allow_origins() -> list[str]:
-    raw = (get_settings().cors_origins or "").strip()
+def _cors_middleware_kwargs() -> dict:
+    """Starlette: use * OR explicit origins; optional regex for e.g. all Vercel previews."""
+    settings = get_settings()
+    raw = (settings.cors_origins or "").strip()
+    regex = (settings.cors_origin_regex or "").strip()
     if not raw or raw == "*":
-        return ["*"]
-    return [o.strip() for o in raw.split(",") if o.strip()]
+        return {
+            "allow_origins": ["*"],
+            "allow_credentials": False,
+        }
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    if not origins:
+        return {
+            "allow_origins": ["*"],
+            "allow_credentials": False,
+        }
+    out: dict = {
+        "allow_origins": origins,
+        "allow_credentials": True,
+    }
+    if regex:
+        out["allow_origin_regex"] = regex
+    return out
 
 
 async def _auto_refresh_loop():
@@ -54,7 +72,11 @@ async def _auto_refresh_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    try:
+        await init_db()
+        logger.info("Database schema ready")
+    except Exception as e:
+        logger.exception("Database init failed — TBA-only routes may still work; fix DATABASE_URL: %s", e)
     task = asyncio.create_task(_auto_refresh_loop())
     logger.info(f"Started auto-refresh scheduler (every {REFRESH_INTERVAL}s)")
     yield
@@ -72,15 +94,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-_origins = _cors_allow_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
-    # Wildcard origin is incompatible with credentialed cross-origin requests in browsers.
-    allow_credentials=False if "*" in _origins else True,
     allow_methods=["*"],
     allow_headers=["*"],
+    **_cors_middleware_kwargs(),
 )
+
+
+@app.get("/api/health", tags=["meta"])
+async def api_health():
+    """No DB required — use to verify Railway/public URL and CORS from the browser."""
+    return {"status": "ok"}
+
 
 app.include_router(router, prefix="/api")
 app.include_router(district_locks_router, prefix="/api")

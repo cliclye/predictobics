@@ -4,6 +4,10 @@
   text-align: center;
 }
 
+.wcmp-progress {
+  font-size: 0.95rem;
+}
+
 .wcmp-district-list {
   display: flex;
   flex-direction: column;

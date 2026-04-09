@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # Comma-separated allowed browser origins, or "*" for any (default). Prefer
     # listing your Vercel + custom domains in production.
     cors_origins: str = "*"
+    # Optional regex (e.g. https://.*\\.vercel\\.app) merged with cors_origins when not "*".
+    # Helps Vercel preview URLs without listing every branch.
+    cors_origin_regex: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
