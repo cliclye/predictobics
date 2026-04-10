@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
+import TeamSeasonCharts from '../components/TeamSeasonCharts';
 import './TeamPage.css';
 
 const COMP_LABELS = { qm: 'Quals', ef: 'Eighths', qf: 'Quarters', sf: 'Semis', f: 'Finals' };
@@ -154,6 +155,10 @@ function TeamPage() {
           Live — auto-updates about every 45s
           <span className="refresh-time">Last: {lastRefresh.toLocaleTimeString()}</span>
         </div>
+      )}
+
+      {metrics.length > 0 && (
+        <TeamSeasonCharts metrics={metrics} eventInfos={eventInfos} seasonYear={year} />
       )}
 
       {metrics.length > 0 && (
