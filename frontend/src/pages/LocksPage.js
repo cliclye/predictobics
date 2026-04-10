@@ -81,13 +81,14 @@ export default function LocksPage() {
   return (
     <div className="locks-page">
       <div className="locks-hero">
-        <h1 className="page-title">District &amp; Championship Locks</h1>
+        <h1 className="page-title">District locks</h1>
         <p className="page-subtitle">
-          DCMP and FIRST Championship (WCMP) merit-path estimates from district points via The Blue Alliance.
-          Separate from EPA predictions.
+          Two independent estimates from the same district points: DCMP is making your district’s District
+          Championship field. WCMP is a separate merit-path snapshot for FIRST Championship (Houston) — different
+          cutoff, not the next round after DCMP. Data from The Blue Alliance; not EPA.
         </p>
         <p className="locks-pnw-predict-link">
-          <Link to="/locks/wcmp">WCMP locks (FIRST Championship — pick district)</Link>
+          <Link to="/locks/wcmp">FIRST Championship view (WCMP-focused table)</Link>
         </p>
         {(districtKey || '').toLowerCase().includes('pnw') && (
           <p className="locks-pnw-predict-link">
@@ -133,13 +134,20 @@ export default function LocksPage() {
           <div className="card locks-summary">
             <h2 className="card-header">{data.district_key}</h2>
             <div className="locks-summary-grid">
+              <div className="locks-summary-seghead">District Championship (DCMP)</div>
               <div>
-                <span className="lbl">DCMP spots (est.)</span>
-                <span className="val">{data.dcmp_spots}</span>
+                <span className="lbl">DCMP field size (est.)</span>
+                <span className="val" title="Estimated teams at your district’s District Championship — used only for the DCMP lock % column">
+                  {data.dcmp_spots}
+                </span>
               </div>
+              <div className="locks-summary-seghead">FIRST Championship (WCMP)</div>
               <div>
-                <span className="lbl">WCMP slots (FIRST, all paths)</span>
-                <span className="val" title="Total FIRST Championship allocation for this district">
+                <span className="lbl">WCMP slots (district allocation)</span>
+                <span
+                  className="val"
+                  title="Total Houston slots assigned to this district (all qualification paths). WCMP lock % uses a separate merit-line simulation."
+                >
                   {data.wcmp_allocated_slots ?? '—'}
                 </span>
               </div>
@@ -147,11 +155,12 @@ export default function LocksPage() {
                 <span className="lbl">WCMP sim rank cutoff</span>
                 <span
                   className="val"
-                  title="Rank cutoff for WCMP lock % (defaults to FIRST Championship slot count; override via API)"
+                  title="Rank cutoff for WCMP lock % only (defaults to allocation; override via API). Not the DCMP field size."
                 >
                   {data.wcmp_merit_sim_spots ?? '—'}
                 </span>
               </div>
+              <div className="locks-summary-seghead">District season (shared inputs)</div>
               <div>
                 <span className="lbl">Impact Award teams (district events)</span>
                 <span className="val">{data.impact_award_count}</span>
@@ -171,7 +180,7 @@ export default function LocksPage() {
               {data.lock_uncertainty_multiplier != null && data.lock_uncertainty_multiplier > 1 && (
                 <div>
                   <span className="lbl">Lock sim. uncertainty scale</span>
-                  <span className="val" title="Wider while district events are still open">
+                  <span className="val" title="Wider while district events are still open (applies to both DCMP and WCMP sims)">
                     ×{Number(data.lock_uncertainty_multiplier).toFixed(2)}
                   </span>
                 </div>
@@ -214,9 +223,9 @@ export default function LocksPage() {
           </div>
 
           <div className="card">
-            <div className="card-header">Rankings &amp; lock %</div>
+            <div className="card-header">District rankings — DCMP vs WCMP columns</div>
             <div className="locks-legend">
-              <span><span className="lg top50" /> Top 50 (by lock %, Impact first)</span>
+              <span><span className="lg top50" /> Top 50 by DCMP lock % (Impact first)</span>
               <span><span className="lg clinched" /> ≥~97% sim.</span>
               <span><span className="lg in-range" /> In range</span>
               <span><span className="lg bubble" /> Bubble</span>
@@ -227,21 +236,21 @@ export default function LocksPage() {
               <table className="locks-table locks-table-wide">
                 <thead>
                   <tr>
-                    <th>Rank</th>
+                    <th title="TBA district points ranking">Dist. rank</th>
                     <th>Team</th>
                     <th>Event 1</th>
                     <th>Event 2</th>
                     <th>Age / adj.</th>
                     <th>Rookie</th>
                     <th>Total</th>
-                    <th>DCMP lock %</th>
-                    <th title="Approx. merit-based FIRST Championship path via district points">WCMP lock %</th>
+                    <th title="P(estimated District Championship field) — district event, not Houston">DCMP lock %</th>
+                    <th title="Separate: merit-path snapshot for FIRST Championship (Houston), different cutoff than DCMP">WCMP lock %</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedTeams.map((t, index) => (
                     <tr key={t.team_key} className={rowClass(t.status, index)}>
-                      <td>{index + 1}</td>
+                      <td>{t.rank ?? index + 1}</td>
                       <td>
                         <Link to={`/team/${t.team_key}`} className="team-link">
                           <span className="team-num">{t.team_number}</span>

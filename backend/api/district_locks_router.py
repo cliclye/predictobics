@@ -1,7 +1,10 @@
 """
-District Championship lock estimates — live data from The Blue Alliance.
+District locks API: two independent Monte Carlo estimates from the same TBA district rankings.
 
-Separate from EPA/predictions; uses district rankings + Monte Carlo.
+DCMP: probability of finishing in the District Championship field (district-size cutoff).
+WCMP: separate FIRST Championship (merit-path) estimate using the district’s Houston slot count.
+
+Not EPA/predictions.
 """
 
 from __future__ import annotations
@@ -33,11 +36,14 @@ from backend.metrics.district_locks import (
 logger = logging.getLogger(__name__)
 
 _LOCKS_DISCLAIMER = (
-    "DCMP field sizes are approximate. WCMP \"allocation\" is the district's total FIRST Championship "
-    "slot count from published eligibility guidance (all paths). By default, WCMP lock %% simulates "
-    "P(rank within that many teams by district points after remaining weeks; not P(qualify by any path). "
-    "Override ``wcmp_merit_spots`` for a different rank cutoff. Same Monte Carlo over remaining district "
-    "week points; uncertainty scales while district week events are unfinished. Not a guarantee. "
+    "DCMP and WCMP are different competitions and different numbers. "
+    "DCMP lock %% uses your district’s estimated District Championship field size (who makes the "
+    "district championship event). "
+    "WCMP lock %% is separate: it uses the district’s FIRST Championship slot allocation and simulates "
+    "whether you finish high enough in district points for the merit path to Houston — not the same cutoff "
+    "as DCMP, and not P(qualify by Impact, EI, winning DCMP, etc.). "
+    "Both columns share the same underlying Monte Carlo over remaining district-week points; "
+    "uncertainty scales while events are unfinished. Not a guarantee. "
     "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
 )
 
@@ -468,7 +474,7 @@ async def get_district_locks(
     n_simulations: int = Query(8000, ge=2000, le=25000),
 ):
     """
-    District rankings, per-event status, Impact winners, estimated DCMP and WCMP lock %.
+    District rankings, per-event status, Impact winners, and two separate lock % columns (DCMP field vs WCMP merit path).
     """
     dkey = _normalize_district_key(district_key, year)
     try:

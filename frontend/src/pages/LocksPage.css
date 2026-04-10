@@ -49,6 +49,24 @@
   margin-top: 0.75rem;
 }
 
+.locks-summary-seghead {
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.locks-summary-seghead:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .locks-summary .lbl {
   display: block;
   font-size: 0.75rem;

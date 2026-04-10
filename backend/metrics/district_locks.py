@@ -1,8 +1,10 @@
 """
-District Championship (DCMP) and FIRST Championship (WCMP) lock estimates from TBA district rankings.
+DCMP vs WCMP are separate estimates from the same TBA district rankings.
 
-Uses Monte Carlo over remaining district point opportunities to estimate
-P(rank <= DCMP cutoff) and, separately, P(rank <= merit-based Championship cutoff).
+Monte Carlo over remaining district points estimates:
+- P(rank <= District Championship field size) for DCMP, and
+- P(rank <= FIRST Championship merit-line rank cutoff) for WCMP (different cutoff, different meaning).
+
 Rules vary by year; capacities are configurable.
 """
 

@@ -171,13 +171,14 @@ export const api = {
   compute: (eventKey) => postJSON(`/compute/${eventKey}`, undefined, { admin: true }),
   train: (year) => postJSON(`/train/${year}`, undefined, { admin: true }),
   getDistrictsForLocks: (year) => fetchJSON(`/district_locks/districts/${year}`),
-  /** All district-model districts for a season with DCMP + WCMP lock tables (one aggregated API call). */
+  /** All district-model districts: WCMP-focused slim rows; DCMP % included as a separate column (different event). */
   getAllDistrictsWcmpLocks: (year, opts = {}) => {
     const q = new URLSearchParams();
     if (opts.nSimulations != null) q.set('n_simulations', String(opts.nSimulations));
     const suffix = q.toString() ? `?${q}` : '';
     return fetchJSON(`/district_locks/wcmp/${year}${suffix}`);
   },
+  /** District rankings with independent DCMP-field and WCMP-merit Monte Carlo estimates (different cutoffs). */
   getDistrictLocks: (districtKey, year, opts = {}) => {
     const q = new URLSearchParams();
     if (opts.dcmpSpots != null) q.set('dcmp_spots', String(opts.dcmpSpots));

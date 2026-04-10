@@ -445,6 +445,51 @@
   color: #fca5a5;
 }
 
+/* Qualification match predictions table (shares .match-table from TeamPage.css) */
+.event-qual-preds-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0 0 1rem;
+  padding: 0 0.25rem;
+}
+
+.event-qual-actual-red {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  min-width: 36px;
+  padding: 0 0.35rem;
+}
+
+.event-qual-actual-blue {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  min-width: 36px;
+  padding: 0 0.35rem;
+}
+
+.event-qual-winpred {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  line-height: 1.2;
+}
+
+.win-pred-side {
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.win-pred-side--red {
+  color: #fca5a5;
+}
+
+.win-pred-side--blue {
+  color: #93c5fd;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .bracket-container {

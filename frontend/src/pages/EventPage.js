@@ -1,8 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../api';
 import './EventPage.css';
+import './TeamPage.css';
+
+const COMP_LABELS = { qm: 'Quals', ef: 'Eighths', qf: 'Quarters', sf: 'Semis', f: 'Finals' };
+
+/** Freeze first-seen preds for finished quals (same behavior as team page on refresh). */
+function stabilizeQualMatchList(list, stableRef) {
+  return list.map((m) => {
+    const played = matchHasScores(m);
+    const snap =
+      m.red_win_prob != null && m.red_win_prob !== undefined
+        ? {
+            red_win_prob: m.red_win_prob,
+            red_predicted_score: m.red_predicted_score,
+            blue_predicted_score: m.blue_predicted_score,
+          }
+        : null;
+    const prev = stableRef.current[m.key];
+    if (!played) {
+      if (snap) stableRef.current[m.key] = snap;
+      return m;
+    }
+    if (prev) {
+      return {
+        ...m,
+        red_win_prob: prev.red_win_prob,
+        red_predicted_score: prev.red_predicted_score,
+        blue_predicted_score: prev.blue_predicted_score,
+      };
+    }
+    if (snap) {
+      stableRef.current[m.key] = snap;
+    }
+    return m;
+  });
+}
 
 /** Display order for 8-alliance double-elimination playoff bracket (API round_name). */
 const PLAYOFF_ROUND_ORDER = [
@@ -232,6 +267,8 @@ function EventPage() {
   const [playoffLoading, setPlayoffLoading] = useState(false);
   /** Non-qual matches for this event (playoff tab): polled on a short interval for actual results next to predictions. */
   const [playoffMatches, setPlayoffMatches] = useState([]);
+  const [qualMatches, setQualMatches] = useState([]);
+  const qualPredStableRef = useRef({});
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(null); }
@@ -251,14 +288,24 @@ function EventPage() {
   const loadPrediction = useCallback(async () => {
     setPredLoading(true);
     setPredError(null);
-    try {
-      const pred = await api.getEventPrediction(eventKey);
-      setPrediction(pred);
-    } catch (err) {
-      console.error('Prediction load failed:', err);
+    const predP = api.getEventPrediction(eventKey).then(
+      (p) => ({ ok: true, pred: p }),
+      (err) => {
+        console.error('Prediction load failed:', err);
+        return { ok: false, err };
+      },
+    );
+    const matchP = api.getMatches(eventKey).catch(() => []);
+    const [predResult, matches] = await Promise.all([predP, matchP]);
+    if (predResult.ok) {
+      setPrediction(predResult.pred);
+      setPredError(null);
+    } else {
       setPrediction(null);
-      setPredError(err.message || 'Could not load event predictions.');
+      setPredError(predResult.err?.message || 'Could not load event predictions.');
     }
+    const qm = (matches || []).filter((m) => m.comp_level === 'qm');
+    setQualMatches(stabilizeQualMatchList(qm, qualPredStableRef));
     setPredLoading(false);
   }, [eventKey]);
 
@@ -285,6 +332,9 @@ function EventPage() {
   }, [eventKey]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    qualPredStableRef.current = {};
+  }, [eventKey]);
   useEffect(() => { loadPrediction(); }, [loadPrediction]);
 
   useEffect(() => {
@@ -417,6 +467,9 @@ function EventPage() {
       {activeTab === 'predictions' && (
         <div className="predictions-section">
           {predLoading && <div className="loading">Running simulations...</div>}
+          {!predLoading && qualMatches.length > 0 && (
+            <QualificationMatchPredictions matches={qualMatches} />
+          )}
           {prediction && <EventPredictions pred={prediction} />}
           {predError && (
             <div className="card pred-error-card" style={{ textAlign: 'center', padding: '2rem' }}>
@@ -462,6 +515,198 @@ function EventPage() {
   );
 }
 
+function EventQualMatchRow({ match }) {
+  const [expanded, setExpanded] = useState(false);
+  const played = matchHasScores(match);
+  const label = `${COMP_LABELS[match.comp_level] || match.comp_level} ${match.match_number}`;
+
+  let actualAlliance = null;
+  if (played && match.winning_alliance === 'red') actualAlliance = 'red';
+  else if (played && match.winning_alliance === 'blue') actualAlliance = 'blue';
+  else if (played && match.red_score === match.blue_score) actualAlliance = 'tie';
+
+  const timeStr = match.time
+    ? new Date(match.time).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+    : null;
+
+  const redPredPerTeam = match.red_predicted_score != null ? match.red_predicted_score / 3 : null;
+  const bluePredPerTeam = match.blue_predicted_score != null ? match.blue_predicted_score / 3 : null;
+
+  const predCorrect =
+    played && match.winning_alliance && match.red_win_prob != null
+      ? (match.red_win_prob >= 0.5 && match.winning_alliance === 'red') ||
+        (match.red_win_prob < 0.5 && match.winning_alliance === 'blue')
+      : null;
+
+  const colCount = 12;
+
+  return (
+    <>
+      <tr className={played ? '' : 'unplayed'}>
+        <td className="col-match match-label">{label}</td>
+        {match.red_teams.map((tk, i) => (
+          <td key={`r${i}`} className="col-team red-cell">
+            <Link to={`/team/${tk}`}>{tk.replace('frc', '')}</Link>
+          </td>
+        ))}
+        {match.blue_teams.map((tk, i) => (
+          <td key={`b${i}`} className="col-team blue-cell">
+            <Link to={`/team/${tk}`}>{tk.replace('frc', '')}</Link>
+          </td>
+        ))}
+        <td className="col-scores">
+          {played ? (
+            <span>
+              <span className="score-red">{match.red_score}</span>
+              {' – '}
+              <span className="score-blue">{match.blue_score}</span>
+            </span>
+          ) : (
+            <span className="scheduled-time">{timeStr || '—'}</span>
+          )}
+        </td>
+        <td className="col-actual">
+          {actualAlliance === 'red' && <span className="actual-badge event-qual-actual-red">Red</span>}
+          {actualAlliance === 'blue' && <span className="actual-badge event-qual-actual-blue">Blue</span>}
+          {actualAlliance === 'tie' && <span className="actual-badge actual-tie">Tie</span>}
+          {!actualAlliance && <span className="actual-pending">--</span>}
+        </td>
+        <td className="col-preds">
+          {match.red_predicted_score != null ? (
+            <span>
+              <span className="pred-red">{match.red_predicted_score}</span>
+              {' – '}
+              <span className="pred-blue">{match.blue_predicted_score}</span>
+            </span>
+          ) : (
+            '—'
+          )}
+        </td>
+        <td className="col-winpred">
+          {match.red_win_prob != null ? (
+            <div className="event-qual-winpred">
+              <span className="win-pred-side win-pred-side--red">
+                {(match.red_win_prob * 100).toFixed(0)}% Red
+              </span>
+              <span className="win-pred-side win-pred-side--blue">
+                {((1 - match.red_win_prob) * 100).toFixed(0)}% Blue
+              </span>
+            </div>
+          ) : (
+            '—'
+          )}
+        </td>
+        <td className="col-explain-btn">
+          <button
+            type="button"
+            className={`explain-toggle ${expanded ? 'open' : ''}`}
+            onClick={() => setExpanded((e) => !e)}
+            title="Show prediction breakdown"
+          >
+            &#9654;
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="explain-row">
+          <td colSpan={colCount}>
+            <div className="explain-content">
+              <div className="explain-section">
+                <div className="explain-alliance red-explain">
+                  <span className="explain-label">Red Alliance EPA</span>
+                  <span className="explain-breakdown">
+                    {match.red_teams.map((tk) => {
+                      const perTeam = redPredPerTeam != null ? redPredPerTeam.toFixed(1) : '?';
+                      return (
+                        <span key={tk} className="explain-team-epa">
+                          {tk.replace('frc', '')}: {perTeam}
+                        </span>
+                      );
+                    })}
+                    <span className="explain-total">= {match.red_predicted_score ?? '?'}</span>
+                  </span>
+                </div>
+                <div className="explain-alliance blue-explain">
+                  <span className="explain-label">Blue Alliance EPA</span>
+                  <span className="explain-breakdown">
+                    {match.blue_teams.map((tk) => {
+                      const perTeam = bluePredPerTeam != null ? bluePredPerTeam.toFixed(1) : '?';
+                      return (
+                        <span key={tk} className="explain-team-epa">
+                          {tk.replace('frc', '')}: {perTeam}
+                        </span>
+                      );
+                    })}
+                    <span className="explain-total">= {match.blue_predicted_score ?? '?'}</span>
+                  </span>
+                </div>
+              </div>
+              <div className="explain-reasoning">
+                {match.red_predicted_score != null && match.blue_predicted_score != null && (
+                  <>
+                    <span className="explain-gap">
+                      EPA gap: {match.red_predicted_score > match.blue_predicted_score ? '+' : ''}
+                      {(match.red_predicted_score - match.blue_predicted_score).toFixed(1)} (
+                      {match.red_predicted_score > match.blue_predicted_score ? 'Red' : 'Blue'} favored)
+                    </span>
+                    {match.red_win_prob != null && (
+                      <span className="explain-prob">
+                        Red win: {(match.red_win_prob * 100).toFixed(1)}% | Blue win:{' '}
+                        {((1 - match.red_win_prob) * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </>
+                )}
+                {predCorrect !== null && (
+                  <span className={`explain-verdict ${predCorrect ? 'correct' : 'incorrect'}`}>
+                    {predCorrect ? 'Predicted winner correct' : 'Predicted winner incorrect'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function QualificationMatchPredictions({ matches }) {
+  return (
+    <div className="card event-qual-preds-card">
+      <div className="card-header">Qualification match predictions</div>
+      <p className="event-qual-preds-note">
+        Per-match EPA model (same as the team page): predicted alliance scores, Red/Blue win chances, and actual
+        results when available. Schedule data refreshes with event predictions about every 45 seconds.
+      </p>
+      <div className="match-table-wrap">
+        <table className="match-table">
+          <thead>
+            <tr>
+              <th className="col-match">Match</th>
+              <th className="col-alliance" colSpan={3}>
+                Red Alliance
+              </th>
+              <th className="col-alliance" colSpan={3}>
+                Blue Alliance
+              </th>
+              <th className="col-scores">Scores</th>
+              <th className="col-actual">Actual</th>
+              <th className="col-preds">Score Preds</th>
+              <th className="col-winpred">Win Pred</th>
+              <th className="col-explain-hdr" aria-hidden="true" />
+            </tr>
+          </thead>
+          <tbody>
+            {matches.map((m) => (
+              <EventQualMatchRow key={m.key} match={m} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function EventPredictions({ pred }) {
   const winnerAlliance = pred.predicted_alliances.find(a => a.number === pred.predicted_winner);

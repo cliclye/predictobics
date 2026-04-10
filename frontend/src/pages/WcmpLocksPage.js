@@ -82,14 +82,15 @@ export default function WcmpLocksPage() {
   return (
     <div className="locks-page wcmp-locks-page">
       <div className="locks-hero">
-        <h1 className="page-title">WCMP locks</h1>
+        <h1 className="page-title">FIRST Championship (WCMP) locks</h1>
         <p className="page-subtitle">
-          Teams are ordered by estimated WCMP qualification chance (merit-path simulation; Impact Award
-          winners count as a direct qualifier). DCMP lock % is for context. Allocation totals come from
-          published FIRST guidance.
+          This page is about Houston qualification (WCMP), not the District Championship. Teams are sorted by
+          estimated WCMP qualification chance (merit-path simulation; Impact Award winners treated as a direct
+          qualifier). The DCMP column is a different event and a different model — same underlying points, different
+          cutoff. Allocation figures follow published FIRST guidance.
         </p>
         <p className="locks-pnw-predict-link">
-          <Link to="/locks">District locks (DCMP + WCMP)</Link>
+          <Link to="/locks">District locks — DCMP and WCMP side by side</Link>
         </p>
       </div>
 
@@ -130,11 +131,12 @@ export default function WcmpLocksPage() {
           <div className="card locks-summary">
             <h2 className="card-header">{data.district_key}</h2>
             <div className="locks-summary-grid">
+              <div className="locks-summary-seghead">FIRST Championship (WCMP)</div>
               <div>
-                <span className="lbl">WCMP slots (FIRST, all paths)</span>
+                <span className="lbl">WCMP slots (district allocation)</span>
                 <span
                   className="val"
-                  title="Total FIRST Championship slots for this district (Impact, Dean's List, EI, RAS, WFFA, winners, merit, etc.). From built-in table; override via API if needed."
+                  title="Houston slots for this district (all paths). WCMP lock % uses the merit-line sim, not DCMP field size."
                 >
                   {data.wcmp_allocated_slots ?? '—'}
                 </span>
@@ -143,15 +145,22 @@ export default function WcmpLocksPage() {
                 <span className="lbl">WCMP sim rank cutoff</span>
                 <span
                   className="val"
-                  title="Rank cutoff for WCMP lock % simulation (defaults to FIRST Championship slot count for this district). Override via API if needed."
+                  title="Rank cutoff for WCMP lock % only (defaults to allocation). Override via API if needed."
                 >
                   {data.wcmp_merit_sim_spots ?? '—'}
                 </span>
               </div>
+              <div className="locks-summary-seghead">District Championship (DCMP) — different event</div>
               <div>
-                <span className="lbl">DCMP spots (est.)</span>
-                <span className="val">{data.dcmp_spots}</span>
+                <span className="lbl">DCMP field size (est.)</span>
+                <span
+                  className="val"
+                  title="Used only for the DCMP lock % column — not the WCMP/Houston simulation"
+                >
+                  {data.dcmp_spots}
+                </span>
               </div>
+              <div className="locks-summary-seghead">District season (shared inputs)</div>
               <div>
                 <span className="lbl">Impact Award teams (district events)</span>
                 <span className="val">{data.impact_award_count}</span>
@@ -171,7 +180,7 @@ export default function WcmpLocksPage() {
               {data.lock_uncertainty_multiplier != null && data.lock_uncertainty_multiplier > 1 && (
                 <div>
                   <span className="lbl">Lock sim. uncertainty scale</span>
-                  <span className="val" title="Wider while district events are still open">
+                  <span className="val" title="Wider while district events are still open (both sims)">
                     ×{Number(data.lock_uncertainty_multiplier).toFixed(2)}
                   </span>
                 </div>
@@ -242,8 +251,8 @@ export default function WcmpLocksPage() {
                     <th>Age / adj.</th>
                     <th>Rookie</th>
                     <th>Total</th>
-                    <th title="Merit-line simulation (district points path)">WCMP lock %</th>
-                    <th title="District Championship field estimate">DCMP lock %</th>
+                    <th title="Merit-path snapshot for FIRST Championship (Houston); separate cutoff from DCMP">WCMP lock %</th>
+                    <th title="Different event: estimated District Championship field — not Houston">DCMP lock %</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -53,7 +53,7 @@ export function sortLocksTeamsByWcmp(teams) {
 }
 
 /**
- * WCMP table: green band = first N rows after WCMP-chance sort (N = district WCMP slot count).
+ * WCMP page only: green band from WCMP-chance sort + Houston slot count — not DCMP field size.
  */
 export function rowClassWcmp(t, wcmpRankCutoff, index) {
   const st = isImpactTeam(t) ? 'impact' : (t.wcmp_status || 'out');
@@ -71,7 +71,9 @@ export function rowClassWcmp(t, wcmpRankCutoff, index) {
   return 'lock-row out';
 }
 
-/** Row styling: first TOP_GREEN_ROWS are green; below that use status bands. Impact keeps accent in top band. */
+/**
+ * District locks page only: row color from DCMP sim bucket (`status`). First TOP_GREEN_ROWS by DCMP sort get the green band.
+ */
 export function rowClass(st, index) {
   const parts = ['lock-row'];
   if (index < TOP_GREEN_ROWS) {

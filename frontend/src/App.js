@@ -26,14 +26,19 @@ function App() {
           <Link to="/predict" className={location.pathname === '/predict' ? 'active' : ''}>
             Predict
           </Link>
-          <Link to="/locks" className={location.pathname === '/locks' ? 'active' : ''}>
-            Locks
+          <Link
+            to="/locks"
+            className={location.pathname === '/locks' ? 'active' : ''}
+            title="District Championship (DCMP) and separate FIRST Championship (WCMP) estimates"
+          >
+            District locks
           </Link>
           <Link
             to="/locks/wcmp"
             className={location.pathname === '/locks/wcmp' ? 'active' : ''}
+            title="FIRST Championship (Houston) — not the District Championship"
           >
-            WCMP locks
+            FIRST Champs
           </Link>
           <Link
             to="/pnw-dcmp"
