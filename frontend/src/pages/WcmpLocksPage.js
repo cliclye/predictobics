@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { sortLocksTeamsByWcmp, rowClassWcmp, LockPctCell } from './locksCommon';
 import './LocksPage.css';
 import './WcmpLocksPage.css';
 
@@ -15,6 +14,29 @@ function statusLabel(s) {
   return map[s] || s;
 }
 
+function isImpactTeam(t) {
+  return t.status === 'impact' || t.lock_display === 'Impact' || t.wcmp_lock_display === 'Impact';
+}
+
+/** FRCLocks-style: % with one decimal, 0%, —, or Impact */
+function formatLocked(t) {
+  if (isImpactTeam(t)) return 'Impact';
+  const p = t.wcmp_lock_probability;
+  if (p == null || !Number.isFinite(p)) return '—';
+  if (p < 1e-9) {
+    const e1 = t.event_1_pts ?? 0;
+    const e2 = t.event_2_pts ?? 0;
+    if (e1 > 0 && e2 > 0) return '—';
+    return '0%';
+  }
+  return `${(p * 100).toFixed(1)}%`;
+}
+
+function sortTeamsByDistrictRank(teams) {
+  if (!teams?.length) return [];
+  return [...teams].sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
+}
+
 export default function WcmpLocksPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [districts, setDistricts] = useState([]);
@@ -26,6 +48,11 @@ export default function WcmpLocksPage() {
 
   const years = [];
   for (let y = new Date().getFullYear() + 1; y >= 2002; y--) years.push(y);
+
+  const districtTitle = useMemo(() => {
+    const d = districts.find((x) => x.key === districtKey);
+    return d?.name || data?.district_key || 'District';
+  }, [districts, districtKey, data?.district_key]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,24 +104,40 @@ export default function WcmpLocksPage() {
     if (districtKey) loadLocks();
   }, [districtKey, year, loadLocks]);
 
-  const sortedTeams = useMemo(() => sortLocksTeamsByWcmp(data?.teams), [data?.teams]);
+  const rankedTeams = useMemo(() => sortTeamsByDistrictRank(data?.teams), [data?.teams]);
+
+  const wcmpSlots = data?.wcmp_allocated_slots ?? data?.wcmp_merit_sim_spots ?? 0;
+
+  const dcmpEventRows = useMemo(() => {
+    if (!data) return [];
+    const pts = data.estimated_points_remaining_hint ?? 0;
+    const field = data.dcmp_spots ?? '—';
+    const dcmpEv = (data.events || []).filter((e) => e.is_district_cmp);
+    if (dcmpEv.length === 0) {
+      return [
+        {
+          key: 'dcmp-synthetic',
+          name: 'District Championship',
+          status: 'pre_event',
+          teamCol: field,
+          pts,
+          eventKey: null,
+        },
+      ];
+    }
+    return dcmpEv.map((ev) => ({
+      key: ev.event_key,
+      name: ev.name || 'District Championship',
+      status: ev.status,
+      teamCol: field,
+      pts,
+      eventKey: ev.event_key,
+    }));
+  }, [data]);
 
   return (
-    <div className="locks-page wcmp-locks-page">
-      <div className="locks-hero">
-        <h1 className="page-title">FIRST Championship (WCMP) locks</h1>
-        <p className="page-subtitle">
-          This page is about Houston qualification (WCMP), not the District Championship. Teams are sorted by
-          estimated WCMP qualification chance (merit-path simulation; Impact Award winners treated as a direct
-          qualifier). The DCMP column is a different event and a different model — same underlying points, different
-          cutoff. Allocation figures follow published FIRST guidance.
-        </p>
-        <p className="locks-pnw-predict-link">
-          <Link to="/locks">District locks — DCMP and WCMP side by side</Link>
-        </p>
-      </div>
-
-      <div className="locks-controls card">
+    <div className="locks-page wcmp-locks-page wcmp-frc-layout">
+      <div className="wcmp-controls card">
         <div className="locks-control-row">
           <label>
             Season
@@ -121,6 +164,11 @@ export default function WcmpLocksPage() {
             Refresh
           </button>
         </div>
+        <p className="wcmp-controls-hint">
+          <Link to="/locks">District locks</Link>
+          {' · '}
+          Monte Carlo lock % for FIRST Championship (merit path); not official.
+        </p>
       </div>
 
       {error && <div className="error-msg">{error}</div>}
@@ -128,177 +176,119 @@ export default function WcmpLocksPage() {
 
       {data && !loading && (
         <>
-          <div className="card locks-summary">
-            <h2 className="card-header">{data.district_key}</h2>
-            <div className="locks-summary-grid">
-              <div className="locks-summary-seghead">FIRST Championship (WCMP)</div>
-              <div>
-                <span className="lbl">WCMP slots (district allocation)</span>
-                <span
-                  className="val"
-                  title="Houston slots for this district (all paths). WCMP lock % uses the merit-line sim, not DCMP field size."
-                >
-                  {data.wcmp_allocated_slots ?? '—'}
-                </span>
-              </div>
-              <div>
-                <span className="lbl">WCMP sim rank cutoff</span>
-                <span
-                  className="val"
-                  title="Rank cutoff for WCMP lock % only (defaults to allocation). Override via API if needed."
-                >
-                  {data.wcmp_merit_sim_spots ?? '—'}
-                </span>
-              </div>
-              <div className="locks-summary-seghead">District Championship (DCMP) — different event</div>
-              <div>
-                <span className="lbl">DCMP field size (est.)</span>
-                <span
-                  className="val"
-                  title="Used only for the DCMP lock % column — not the WCMP/Houston simulation"
-                >
-                  {data.dcmp_spots}
-                </span>
-              </div>
-              <div className="locks-summary-seghead">District season (shared inputs)</div>
-              <div>
-                <span className="lbl">Impact Award teams (district events)</span>
-                <span className="val">{data.impact_award_count}</span>
-              </div>
-              <div>
-                <span className="lbl">Points remaining (rough hint)</span>
-                <span className="val">{data.estimated_points_remaining_hint}</span>
-              </div>
-              {data.calendar_events_total > 0 && (
-                <div>
-                  <span className="lbl">District events not finished (TBA)</span>
-                  <span className="val">
-                    {data.calendar_events_incomplete ?? 0} / {data.calendar_events_total}
-                  </span>
-                </div>
-              )}
-              {data.lock_uncertainty_multiplier != null && data.lock_uncertainty_multiplier > 1 && (
-                <div>
-                  <span className="lbl">Lock sim. uncertainty scale</span>
-                  <span className="val" title="Wider while district events are still open (both sims)">
-                    ×{Number(data.lock_uncertainty_multiplier).toFixed(2)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <p className="locks-disclaimer">{data.disclaimer}</p>
-          </div>
+          <header className="wcmp-district-title">
+            <h1 className="wcmp-district-heading">{districtTitle}</h1>
+          </header>
 
-          <div className="card">
-            <div className="card-header">District events</div>
-            <div className="table-wrapper">
-              <table className="locks-table">
+          <section className="wcmp-section">
+            <h2 className="wcmp-section-title">Statistic</h2>
+            <table className="wcmp-kv-table">
+              <tbody>
+                <tr>
+                  <th scope="row">Points Remaining in the District</th>
+                  <td>{data.estimated_points_remaining_hint ?? '—'}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Available World Champs Spots</th>
+                  <td>{data.wcmp_allocated_slots ?? '—'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section className="wcmp-section">
+            <h2 className="wcmp-section-title">Events</h2>
+            <div className="table-wrapper wcmp-table-wrap">
+              <table className="wcmp-data-table">
                 <thead>
                   <tr>
                     <th>Event</th>
                     <th>Status</th>
-                    <th>Teams</th>
-                    <th>Impact at event</th>
+                    <th className="wcmp-num"># Teams</th>
+                    <th className="wcmp-num">Pts Available</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(data.events || []).map((ev) => (
-                    <tr key={ev.event_key} className={`ev-status-${ev.status}`}>
+                  {dcmpEventRows.map((row) => (
+                    <tr key={row.key}>
                       <td>
-                        <Link to={`/event/${ev.event_key}`}>{ev.name}</Link>
-                        <span className="ev-key">{ev.event_key}</span>
+                        {row.eventKey ? (
+                          <Link to={`/event/${row.eventKey}`}>{row.name}</Link>
+                        ) : (
+                          row.name
+                        )}
                       </td>
-                      <td>{statusLabel(ev.status)}</td>
-                      <td>{ev.team_count || '—'}</td>
-                      <td>
-                        {ev.impact_winners?.length
-                          ? ev.impact_winners.map((t) => t.replace('frc', '')).join(', ')
-                          : '—'}
-                      </td>
+                      <td>{statusLabel(row.status)}</td>
+                      <td className="wcmp-num">{row.teamCol}</td>
+                      <td className="wcmp-num">{row.pts}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
 
-          <div className="card">
-            <div className="card-header">By WCMP qualification chance</div>
-            <div className="locks-legend">
-              <span>
-                <span className="lg top50" />
-                {' '}
-                Top
-                {' '}
-                {data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots ?? '—'}
-                {' '}
-                by WCMP chance (after sort; Impact in band highlighted)
-              </span>
-              <span><span className="lg clinched" /> ≥~97% sim.</span>
-              <span><span className="lg in-range" /> In range</span>
-              <span><span className="lg bubble" /> Bubble</span>
-              <span><span className="lg out" /> Out</span>
-              <span><span className="lg impact" /> Impact Award</span>
-            </div>
-            <div className="table-wrapper">
-              <table className="locks-table locks-table-wide">
+          <section className="wcmp-section">
+            <h2 className="wcmp-section-title">District Rankings</h2>
+            <div className="table-wrapper wcmp-table-wrap">
+              <table className="wcmp-data-table wcmp-rankings-table">
                 <thead>
                   <tr>
-                    <th title="District points ranking (TBA)">Dist. rank</th>
+                    <th className="wcmp-num">Rank</th>
                     <th>Team</th>
-                    <th>Event 1</th>
-                    <th>Event 2</th>
-                    <th>Age / adj.</th>
-                    <th>Rookie</th>
-                    <th>Total</th>
-                    <th title="Merit-path snapshot for FIRST Championship (Houston); separate cutoff from DCMP">WCMP lock %</th>
-                    <th title="Different event: estimated District Championship field — not Houston">DCMP lock %</th>
+                    <th className="wcmp-num" title="Qualification points from district events (two plays)">Districts</th>
+                    <th className="wcmp-num" title="TBA adjustments + rookie bonus">Age Bonus</th>
+                    <th className="wcmp-num" title="Points earned at District Championship">DCMP</th>
+                    <th className="wcmp-num">Total</th>
+                    <th className="wcmp-num" title="Simulated merit-path lock for World Championship">Locked?</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedTeams.map((t, index) => (
-                    <tr
-                      key={t.team_key}
-                      className={rowClassWcmp(
-                        t,
-                        data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots,
-                        index,
-                      )}
-                    >
-                      <td>{t.rank ?? index + 1}</td>
-                      <td>
-                        <Link to={`/team/${t.team_key}`} className="team-link">
-                          <span className="team-num">{t.team_number}</span>
-                        </Link>
-                      </td>
-                      <td>{t.event_1_pts ?? 0}</td>
-                      <td>{t.event_2_pts ?? 0}</td>
-                      <td>{t.age_adjustment ?? 0}</td>
-                      <td>{t.rookie_bonus ?? 0}</td>
-                      <td><strong>{t.point_total}</strong></td>
-                      <td className="lock-pct-cell">
-                        <LockPctCell t={t} wcmp />
-                      </td>
-                      <td className="lock-pct-cell">
-                        <LockPctCell t={t} />
-                      </td>
-                    </tr>
-                  ))}
+                  {rankedTeams.map((t) => {
+                    const dq = t.district_qual_points;
+                    const districtsCol = dq != null ? dq : (t.event_1_pts ?? 0) + (t.event_2_pts ?? 0);
+                    const ageB = t.age_bonus != null
+                      ? t.age_bonus
+                      : (t.age_adjustment ?? 0) + (t.rookie_bonus ?? 0);
+                    const dcmpP = t.dcmp_points ?? 0;
+                    const inSlotBand = wcmpSlots > 0 && t.rank != null && t.rank <= wcmpSlots;
+                    return (
+                      <tr
+                        key={t.team_key}
+                        className={inSlotBand ? 'wcmp-row-slot-band' : undefined}
+                      >
+                        <td className="wcmp-num">{t.rank ?? '—'}</td>
+                        <td className="wcmp-team-key">
+                          <Link to={`/team/${t.team_key}`}>{t.team_key}</Link>
+                        </td>
+                        <td className="wcmp-num">{districtsCol}</td>
+                        <td className="wcmp-num">{ageB}</td>
+                        <td className="wcmp-num">{dcmpP}</td>
+                        <td className="wcmp-num wcmp-total">{t.point_total ?? 0}</td>
+                        <td className="wcmp-num wcmp-locked">{formatLocked(t)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
 
-          {data.impact_award_teams?.length > 0 && (
-            <div className="card locks-impact-list">
-              <div className="card-header">Impact Award winners (tracked)</div>
-              <p className="impact-tags">
-                {data.impact_award_teams.map((tk) => (
-                  <Link key={tk} to={`/team/${tk}`} className="impact-tag">{tk.replace('frc', '')}</Link>
-                ))}
-              </p>
-            </div>
-          )}
+          <p className="wcmp-disclaimer-inline">{data.disclaimer}</p>
+
+          <footer className="wcmp-footer">
+            <p className="wcmp-footer-brand">Predictobics</p>
+            <p className="wcmp-footer-line">
+              Layout inspired by classic district lock tools · Algorithm: Monte Carlo on district points (TBA)
+            </p>
+            <p className="wcmp-footer-line">
+              Data from{' '}
+              <a href="https://www.thebluealliance.com/" target="_blank" rel="noreferrer">The Blue Alliance</a>
+              {' · '}
+              <a href="https://www.firstinspires.org/" target="_blank" rel="noreferrer">FIRST</a>
+              {' '}is a registered trademark of FIRST.
+            </p>
+          </footer>
         </>
       )}
     </div>

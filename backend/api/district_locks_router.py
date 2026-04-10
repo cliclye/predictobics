@@ -133,6 +133,21 @@ def _point_breakdown(row: dict) -> dict[str, int]:
     }
 
 
+def _dcmp_points_from_row(row: dict) -> int:
+    """District Championship (type-2) points only, from TBA event_points entries."""
+    s = 0
+    for ep in row.get("event_points") or []:
+        if not ep.get("district_cmp"):
+            continue
+        s += int(
+            ep.get("total")
+            or ep.get("district_points")
+            or ep.get("points")
+            or 0
+        )
+    return s
+
+
 def _impact_teams_from_awards(awards: list | None) -> list[str]:
     teams: list[str] = []
     for a in awards or []:
@@ -217,6 +232,7 @@ async def _district_locks_payload_impl(
             "impact_winners": im,
             "counts_for_lock_calendar": counts_for_calendar,
             "pts_hint": pts_hint,
+            "is_district_cmp": is_district_cmp,
         }
 
     enriched = await asyncio.gather(*[_enrich_one_district_event(ev) for ev in devents])
@@ -231,6 +247,7 @@ async def _district_locks_payload_impl(
                 "team_count": row["team_count"],
                 "impact_winners": row["impact_winners"],
                 "counts_for_lock_calendar": row["counts_for_lock_calendar"],
+                "is_district_cmp": row["is_district_cmp"],
             }
         )
         for t in row["impact_winners"]:
@@ -256,6 +273,9 @@ async def _district_locks_payload_impl(
     for i, row in enumerate(merged):
         tk = row.get("team_key", "")
         br = _point_breakdown(row)
+        dcmp_pts = _dcmp_points_from_row(row)
+        district_qual_pts = int(br["event_1_pts"]) + int(br["event_2_pts"])
+        age_bonus = int(br["age_adjustment"]) + int(br["rookie_bonus"])
         lp = row.get("lock_probability", 0.0)
         st = row.get("status", "out")
         wlp = row.get("wcmp_lock_probability")
@@ -267,6 +287,9 @@ async def _district_locks_payload_impl(
             "team_number": _team_num(tk),
             "event_1_pts": br["event_1_pts"],
             "event_2_pts": br["event_2_pts"],
+            "district_qual_points": district_qual_pts,
+            "age_bonus": age_bonus,
+            "dcmp_points": dcmp_pts,
             "age_adjustment": br["age_adjustment"],
             "rookie_bonus": br["rookie_bonus"],
             "point_total": br["point_total"],
@@ -317,6 +340,9 @@ def _slim_teams_for_wcmp_page(teams: list[dict[str, Any]]) -> list[dict[str, Any
                 "team_number": t.get("team_number"),
                 "event_1_pts": t.get("event_1_pts"),
                 "event_2_pts": t.get("event_2_pts"),
+                "district_qual_points": t.get("district_qual_points"),
+                "age_bonus": t.get("age_bonus"),
+                "dcmp_points": t.get("dcmp_points"),
                 "age_adjustment": t.get("age_adjustment"),
                 "rookie_bonus": t.get("rookie_bonus"),
                 "point_total": t.get("point_total"),
