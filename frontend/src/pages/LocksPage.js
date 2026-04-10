@@ -79,7 +79,7 @@ export default function LocksPage() {
   const sortedTeams = useMemo(() => sortLocksTeams(data?.teams), [data?.teams]);
 
   return (
-    <div className="locks-page">
+    <div className="locks-page ds-page-wide">
       <div className="locks-hero">
         <h1 className="page-title">District locks</h1>
         <p className="page-subtitle">
@@ -191,8 +191,8 @@ export default function LocksPage() {
 
           <div className="card">
             <div className="card-header">District events</div>
-            <div className="table-wrapper">
-              <table className="locks-table">
+            <div className="ds-table-wrap">
+              <table className="locks-table ds-data-table">
                 <thead>
                   <tr>
                     <th>Event</th>
@@ -232,8 +232,8 @@ export default function LocksPage() {
               <span><span className="lg out" /> Out</span>
               <span><span className="lg impact" /> Impact Award</span>
             </div>
-            <div className="table-wrapper">
-              <table className="locks-table locks-table-wide">
+            <div className="ds-table-wrap">
+              <table className="locks-table locks-table-wide ds-data-table">
                 <thead>
                   <tr>
                     <th title="TBA district points ranking">Dist. rank</th>

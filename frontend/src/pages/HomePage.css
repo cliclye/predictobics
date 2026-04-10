@@ -5,8 +5,8 @@
 
 .hero-section .page-title {
   font-weight: 700;
-  font-size: 2rem;
-  letter-spacing: -0.04em;
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
 }
 
 .hero-section .page-subtitle {
@@ -247,8 +247,8 @@
 .week-block {
   margin-bottom: 0.5rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-secondary);
+  border-radius: 6px;
+  background: var(--bg-card);
   overflow: hidden;
 }
 
@@ -321,13 +321,15 @@
 .event-card {
   padding: 1rem 1.25rem;
   color: var(--text-primary);
-  transition: all 0.15s;
+  transition: border-color 0.12s, background 0.12s;
   cursor: pointer;
+  border-radius: 6px;
+  box-shadow: none;
 }
 
 .event-card:hover {
   border-color: var(--accent);
-  transform: translateY(-1px);
+  background: var(--bg-hover);
 }
 
 .event-name {
@@ -380,25 +382,19 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--bg-secondary);
+}
+
+.events-table thead th {
   box-shadow: 0 1px 0 var(--border);
 }
 
 .events-table th {
   text-align: left;
-  padding: 0.65rem 0.85rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .events-table td {
-  padding: 0.55rem 0.85rem;
-  border-top: 1px solid var(--border);
   vertical-align: top;
+  white-space: normal;
 }
 
 .events-table tbody tr:hover {

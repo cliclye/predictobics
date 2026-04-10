@@ -377,7 +377,7 @@ function EventPage() {
   if (error) return <div className="error-msg">{error}</div>;
 
   return (
-    <div className="event-page">
+    <div className="event-page ds-page-wide">
       {event && (
         <div className="event-header">
           <h1 className="page-title">{event.name}</h1>
@@ -413,31 +413,31 @@ function EventPage() {
           {sorted.length > 0 ? (
             <div className="card">
               <div className="card-header">EPA Rankings</div>
-              <div className="table-wrapper">
-                <table>
+              <div className="ds-table-wrap">
+                <table className="ds-data-table ds-zebra">
                   <thead>
                     <tr>
-                      <th>#</th>
+                      <th className="ds-num">#</th>
                       <th>Team</th>
                       <th className="sortable" onClick={() => handleSort('epa_total')}>EPA {sortField === 'epa_total' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="sortable" onClick={() => handleSort('epa_auto')}>Auto {sortField === 'epa_auto' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="sortable" onClick={() => handleSort('epa_teleop')}>Teleop {sortField === 'epa_teleop' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="sortable" onClick={() => handleSort('epa_endgame')}>Endgame {sortField === 'epa_endgame' && (sortDir === 'desc' ? '↓' : '↑')}</th>
                       <th className="sortable" onClick={() => handleSort('consistency')}>Consistency {sortField === 'consistency' && (sortDir === 'desc' ? '↓' : '↑')}</th>
-                      <th>Matches</th>
+                      <th className="ds-num">Matches</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sorted.map((r, idx) => (
                       <tr key={r.team_key}>
-                        <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                        <td className="ds-num" style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
                         <td>
                           <Link to={`/team/${r.team_key}`} className="team-link">
                             <span className="team-num">{r.team_number}</span>
                             {r.team_name && <span className="team-nm">{r.team_name}</span>}
                           </Link>
                         </td>
-                        <td>
+                        <td className="ds-num">
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontWeight: 600, minWidth: 40 }}>{(r.epa_total || 0).toFixed(1)}</span>
                             <div className="epa-bar" style={{ flex: 1, maxWidth: 80 }}>
@@ -445,11 +445,11 @@ function EventPage() {
                             </div>
                           </div>
                         </td>
-                        <td>{(r.epa_auto || 0).toFixed(1)}</td>
-                        <td>{(r.epa_teleop || 0).toFixed(1)}</td>
-                        <td>{(r.epa_endgame || 0).toFixed(1)}</td>
-                        <td>{((r.consistency || 0) * 100).toFixed(0)}%</td>
-                        <td>{r.matches_played}</td>
+                        <td className="ds-num">{(r.epa_auto || 0).toFixed(1)}</td>
+                        <td className="ds-num">{(r.epa_teleop || 0).toFixed(1)}</td>
+                        <td className="ds-num">{(r.epa_endgame || 0).toFixed(1)}</td>
+                        <td className="ds-num">{((r.consistency || 0) * 100).toFixed(0)}%</td>
+                        <td className="ds-num">{r.matches_played}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -785,36 +785,36 @@ function EventPredictions({ pred }) {
       {/* Predicted Rankings */}
       <div className="card">
         <div className="card-header">Predicted Qual Rankings</div>
-        <div className="table-wrapper">
-          <table>
+        <div className="ds-table-wrap">
+          <table className="ds-data-table ds-zebra">
             <thead>
               <tr>
-                <th>#</th>
+                <th className="ds-num">#</th>
                 <th>Team</th>
-                <th>EPA</th>
-                <th>Pred RP</th>
-                <th>Qual W-L-T</th>
-                <th>Pred Record</th>
-                <th>Win %</th>
+                <th className="ds-num">EPA</th>
+                <th className="ds-num">Pred RP</th>
+                <th className="ds-num">Qual W-L-T</th>
+                <th className="ds-num">Pred Record</th>
+                <th className="ds-num">Win %</th>
               </tr>
             </thead>
             <tbody>
               {pred.predicted_rankings.map(r => (
                 <tr key={r.team_key}>
-                  <td style={{ color: 'var(--text-muted)' }}>{r.rank}</td>
+                  <td className="ds-num" style={{ color: 'var(--text-muted)' }}>{r.rank}</td>
                   <td>
                     <Link to={`/team/${r.team_key}`} className="team-link">
                       <span className="team-num">{r.team_number}</span>
                       {r.team_name && <span className="team-nm">{r.team_name}</span>}
                     </Link>
                   </td>
-                  <td style={{ fontWeight: 600 }}>{(r.epa_total || 0).toFixed(1)}</td>
-                  <td>{r.predicted_rp.toFixed(1)}</td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  <td className="ds-num" style={{ fontWeight: 600 }}>{(r.epa_total || 0).toFixed(1)}</td>
+                  <td className="ds-num">{r.predicted_rp.toFixed(1)}</td>
+                  <td className="ds-num" style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                     {r.actual_qual_record || '—'}
                   </td>
-                  <td>{r.predicted_record}</td>
-                  <td>
+                  <td className="ds-num">{r.predicted_record}</td>
+                  <td className="ds-num">
                     <span className={`win-pct-cell ${r.win_pct >= 0.6 ? 'high' : r.win_pct >= 0.4 ? 'mid' : 'low'}`}>
                       {(r.win_pct * 100).toFixed(0)}%
                     </span>

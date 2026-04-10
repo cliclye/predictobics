@@ -1,0 +1,204 @@
+/**
+ * Site-wide “data table” UI (aligned with WCMP / FRCLocks-style density).
+ * Load after App.css so these rules win for matching specificity.
+ */
+
+/* ── Page shells ── */
+.ds-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+
+.ds-page-wide {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+
+.ds-page-narrow {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+
+/* ── Sections ── */
+.ds-section {
+  margin-bottom: 1.75rem;
+}
+
+.ds-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* ── Hero (centered page title) ── */
+.ds-page-hero {
+  margin: 0 0 1.25rem;
+  text-align: center;
+}
+
+.ds-page-hero-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.ds-page-hero .page-subtitle {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  max-width: 40rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ── Statistic / key–value table ── */
+.ds-kv-table {
+  width: 100%;
+  max-width: 520px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ds-kv-table th,
+.ds-kv-table td {
+  padding: 0.35rem 0.65rem;
+  text-align: left;
+  border: 1px solid var(--border);
+}
+
+.ds-kv-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  width: 58%;
+}
+
+.ds-kv-table td {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── Dense bordered data tables ── */
+.ds-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+
+.ds-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ds-data-table th,
+.ds-data-table td {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.ds-data-table thead th {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  white-space: nowrap;
+}
+
+.ds-data-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ds-data-table.ds-zebra tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ds-data-table a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ds-data-table a:hover {
+  text-decoration: underline;
+}
+
+.ds-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-mono,
+.ds-mono a {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* ── Controls strip (inside .card) ── */
+.ds-controls-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.ds-controls-hint a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Disclaimers / footnotes ── */
+.ds-disclaimer {
+  margin: 1.25rem 0 1rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ── Optional page-local footer (WCMP-style) ── */
+.ds-page-footer {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.ds-page-footer-brand {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.ds-page-footer-line {
+  margin: 0.25rem 0;
+}
+
+.ds-page-footer a {
+  color: var(--accent);
+}
+
+/* Left-aligned hero (e.g. form pages) */
+.ds-page-hero.ds-page-hero--left {
+  text-align: left;
+}
+
+.ds-page-hero.ds-page-hero--left .page-subtitle {
+  margin-left: 0;
+  margin-right: 0;
+}

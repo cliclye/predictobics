@@ -37,7 +37,7 @@ export default function PnwDcmpPage() {
   }, [year, navigate]);
 
   return (
-    <div className="pnw-dcmp-page">
+    <div className="pnw-dcmp-page ds-page-narrow">
       <div className="pnw-dcmp-hero">
         <h1 className="page-title">PNW District Championship</h1>
         <p className="page-subtitle">

@@ -9,15 +9,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2rem;
-  height: 56px;
-  background: rgba(22, 27, 34, 0.85);
+  padding: 0 1.25rem 0 1.5rem;
+  height: 52px;
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 .nav-brand {
@@ -67,7 +65,7 @@
 /* ── Main ── */
 .main-content {
   flex: 1;
-  padding: 2rem;
+  padding: 1.5rem 1.25rem 2rem;
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
@@ -76,10 +74,12 @@
 /* ── Footer ── */
 .footer {
   text-align: center;
-  padding: 1.5rem;
+  padding: 1.25rem 1rem;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
   border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
 }
 
 .footer .footer-line {
@@ -110,33 +110,35 @@
 
 /* ── Shared Components ── */
 .page-title {
-  font-size: 1.8rem;
-  font-weight: 800;
-  margin-bottom: 0.25rem;
-  letter-spacing: -0.03em;
+  font-size: 1.55rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  letter-spacing: -0.02em;
 }
 
 .page-subtitle {
   color: var(--text-secondary);
-  font-size: 0.95rem;
-  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
 }
 
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  box-shadow: var(--shadow);
+  border-radius: 6px;
+  padding: 1.15rem 1.25rem;
+  box-shadow: none;
 }
 
 .card-header {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  letter-spacing: -0.02em;
 }
 
 .grid-2 {
@@ -154,8 +156,9 @@
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  box-shadow: none;
 }
 
 .stat-label {
@@ -250,8 +253,9 @@
 /* ── Table ── */
 .table-wrapper {
   overflow-x: auto;
-  border-radius: var(--radius);
+  border-radius: 6px;
   border: 1px solid var(--border);
+  background: var(--bg-card);
 }
 
 table {

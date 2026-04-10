@@ -1,5 +1,4 @@
 .team-page {
-  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -252,6 +251,9 @@
 /* ── Match Table ── */
 .match-table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
 }
 
 .match-table {
@@ -262,23 +264,23 @@
 
 .match-table thead th {
   background: var(--bg-secondary);
-  padding: 0.6rem 0.5rem;
+  padding: 0.35rem 0.45rem;
   text-align: center;
-  font-weight: 600;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: 0;
   white-space: nowrap;
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
   position: sticky;
   top: 0;
 }
 
 .match-table tbody td {
-  padding: 0.45rem 0.5rem;
+  padding: 0.3rem 0.45rem;
   text-align: center;
-  border-top: 1px solid rgba(42, 58, 84, 0.5);
+  border: 1px solid var(--border);
   white-space: nowrap;
 }
 

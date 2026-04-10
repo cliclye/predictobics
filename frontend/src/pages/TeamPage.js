@@ -109,7 +109,7 @@ function TeamPage() {
   if (!team) return null;
 
   return (
-    <div className="team-page">
+    <div className="team-page ds-page-wide">
       <div className="team-top-bar">
         <div className="team-identity">
           <h1 className="team-title">{team.team_number}</h1>

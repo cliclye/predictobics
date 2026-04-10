@@ -136,8 +136,8 @@ export default function WcmpLocksPage() {
   }, [data]);
 
   return (
-    <div className="locks-page wcmp-locks-page wcmp-frc-layout">
-      <div className="wcmp-controls card">
+    <div className="wcmp-locks-page ds-page">
+      <div className="card locks-controls">
         <div className="locks-control-row">
           <label>
             Season
@@ -164,7 +164,7 @@ export default function WcmpLocksPage() {
             Refresh
           </button>
         </div>
-        <p className="wcmp-controls-hint">
+        <p className="ds-controls-hint">
           <Link to="/locks">District locks</Link>
           {' · '}
           Monte Carlo lock % for FIRST Championship (merit path); not official.
@@ -176,13 +176,13 @@ export default function WcmpLocksPage() {
 
       {data && !loading && (
         <>
-          <header className="wcmp-district-title">
-            <h1 className="wcmp-district-heading">{districtTitle}</h1>
+          <header className="ds-page-hero">
+            <h1 className="ds-page-hero-title">{districtTitle}</h1>
           </header>
 
-          <section className="wcmp-section">
-            <h2 className="wcmp-section-title">Statistic</h2>
-            <table className="wcmp-kv-table">
+          <section className="ds-section">
+            <h2 className="ds-section-title">Statistic</h2>
+            <table className="ds-kv-table">
               <tbody>
                 <tr>
                   <th scope="row">Points Remaining in the District</th>
@@ -196,16 +196,16 @@ export default function WcmpLocksPage() {
             </table>
           </section>
 
-          <section className="wcmp-section">
-            <h2 className="wcmp-section-title">Events</h2>
-            <div className="table-wrapper wcmp-table-wrap">
-              <table className="wcmp-data-table">
+          <section className="ds-section">
+            <h2 className="ds-section-title">Events</h2>
+            <div className="ds-table-wrap">
+              <table className="ds-data-table ds-zebra">
                 <thead>
                   <tr>
                     <th>Event</th>
                     <th>Status</th>
-                    <th className="wcmp-num"># Teams</th>
-                    <th className="wcmp-num">Pts Available</th>
+                    <th className="ds-num"># Teams</th>
+                    <th className="ds-num">Pts Available</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,8 +219,8 @@ export default function WcmpLocksPage() {
                         )}
                       </td>
                       <td>{statusLabel(row.status)}</td>
-                      <td className="wcmp-num">{row.teamCol}</td>
-                      <td className="wcmp-num">{row.pts}</td>
+                      <td className="ds-num">{row.teamCol}</td>
+                      <td className="ds-num">{row.pts}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -228,19 +228,19 @@ export default function WcmpLocksPage() {
             </div>
           </section>
 
-          <section className="wcmp-section">
-            <h2 className="wcmp-section-title">District Rankings</h2>
-            <div className="table-wrapper wcmp-table-wrap">
-              <table className="wcmp-data-table wcmp-rankings-table">
+          <section className="ds-section">
+            <h2 className="ds-section-title">District Rankings</h2>
+            <div className="ds-table-wrap">
+              <table className="ds-data-table ds-zebra wcmp-rankings-table">
                 <thead>
                   <tr>
-                    <th className="wcmp-num">Rank</th>
+                    <th className="ds-num">Rank</th>
                     <th>Team</th>
-                    <th className="wcmp-num" title="Qualification points from district events (two plays)">Districts</th>
-                    <th className="wcmp-num" title="TBA adjustments + rookie bonus">Age Bonus</th>
-                    <th className="wcmp-num" title="Points earned at District Championship">DCMP</th>
-                    <th className="wcmp-num">Total</th>
-                    <th className="wcmp-num" title="Simulated merit-path lock for World Championship">Locked?</th>
+                    <th className="ds-num" title="Qualification points from district events (two plays)">Districts</th>
+                    <th className="ds-num" title="TBA adjustments + rookie bonus">Age Bonus</th>
+                    <th className="ds-num" title="Points earned at District Championship">DCMP</th>
+                    <th className="ds-num">Total</th>
+                    <th className="ds-num" title="Simulated merit-path lock for World Championship">Locked?</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -257,15 +257,15 @@ export default function WcmpLocksPage() {
                         key={t.team_key}
                         className={inSlotBand ? 'wcmp-row-slot-band' : undefined}
                       >
-                        <td className="wcmp-num">{t.rank ?? '—'}</td>
-                        <td className="wcmp-team-key">
+                        <td className="ds-num">{t.rank ?? '—'}</td>
+                        <td className="ds-mono">
                           <Link to={`/team/${t.team_key}`}>{t.team_key}</Link>
                         </td>
-                        <td className="wcmp-num">{districtsCol}</td>
-                        <td className="wcmp-num">{ageB}</td>
-                        <td className="wcmp-num">{dcmpP}</td>
-                        <td className="wcmp-num wcmp-total">{t.point_total ?? 0}</td>
-                        <td className="wcmp-num wcmp-locked">{formatLocked(t)}</td>
+                        <td className="ds-num">{districtsCol}</td>
+                        <td className="ds-num">{ageB}</td>
+                        <td className="ds-num">{dcmpP}</td>
+                        <td className="ds-num wcmp-total">{t.point_total ?? 0}</td>
+                        <td className="ds-num wcmp-locked">{formatLocked(t)}</td>
                       </tr>
                     );
                   })}
@@ -274,14 +274,14 @@ export default function WcmpLocksPage() {
             </div>
           </section>
 
-          <p className="wcmp-disclaimer-inline">{data.disclaimer}</p>
+          <p className="ds-disclaimer">{data.disclaimer}</p>
 
-          <footer className="wcmp-footer">
-            <p className="wcmp-footer-brand">Predictobics</p>
-            <p className="wcmp-footer-line">
+          <footer className="ds-page-footer">
+            <p className="ds-page-footer-brand">Predictobics</p>
+            <p className="ds-page-footer-line">
               Layout inspired by classic district lock tools · Algorithm: Monte Carlo on district points (TBA)
             </p>
-            <p className="wcmp-footer-line">
+            <p className="ds-page-footer-line">
               Data from{' '}
               <a href="https://www.thebluealliance.com/" target="_blank" rel="noreferrer">The Blue Alliance</a>
               {' · '}

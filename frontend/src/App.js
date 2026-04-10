@@ -8,6 +8,7 @@ import LocksPage from './pages/LocksPage';
 import WcmpLocksPage from './pages/WcmpLocksPage';
 import PnwDcmpPage from './pages/PnwDcmpPage';
 import './App.css';
+import './design-system.css';
 
 function App() {
   const location = useLocation();

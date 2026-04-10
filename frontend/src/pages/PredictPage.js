@@ -130,7 +130,7 @@ function PredictPage() {
   const redWin = result && result.red_win_prob > 0.5;
 
   return (
-    <div className="predict-page">
+    <div className="predict-page ds-page-narrow">
       <h1 className="page-title">Match Predictor</h1>
       <p className="page-subtitle">Enter 6 teams to predict the match outcome</p>
 
