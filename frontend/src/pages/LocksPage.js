@@ -81,7 +81,7 @@ export default function LocksPage() {
   return (
     <div className="locks-page ds-page-wide">
       <div className="locks-hero">
-        <h1 className="page-title">District locks</h1>
+        <h1 className="page-title text-gradient">District locks</h1>
         <p className="page-subtitle">
           Two independent estimates from the same district points: DCMP is making your district’s District
           Championship field. WCMP is a separate merit-path snapshot for FIRST Championship (Houston) — different

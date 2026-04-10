@@ -9,32 +9,38 @@
 /* ── Tabs ── */
 .event-tabs {
   display: flex;
-  gap: 0.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.35rem;
+  padding: 0.35rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .event-tab {
-  padding: 0.6rem 1.25rem;
+  padding: 0.55rem 1.15rem;
   border: none;
-  background: none;
+  background: transparent;
   color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: all 0.12s;
+  border-radius: 999px;
+  transition: color 0.2s var(--ease-out), background 0.2s, box-shadow 0.25s;
 }
 
 .event-tab:hover {
   color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .event-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--text-primary);
+  background: linear-gradient(135deg, var(--accent-soft-strong), var(--violet-soft));
+  box-shadow: 0 0 20px -8px rgba(56, 189, 248, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* ── Rankings table ── */
@@ -74,10 +80,13 @@
 
 /* ── Predictions ── */
 .pred-info-banner {
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: rgba(88, 166, 255, 0.06);
+  padding: 1.05rem 1.3rem;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--accent-soft), var(--violet-soft));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .pred-info-line {
@@ -162,10 +171,11 @@
 }
 
 .bracket-de-band {
-  background: linear-gradient(180deg, rgba(88, 166, 255, 0.07) 0%, transparent 120%);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.75rem 0.75rem 1rem;
+  background: linear-gradient(180deg, var(--accent-soft) 0%, transparent 120%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 0.85rem 1.05rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .bracket-de-band--losers {
@@ -216,7 +226,7 @@
 }
 
 .bracket-team--blue {
-  border-left: 3px solid rgba(88, 166, 255, 0.55);
+  border-left: 3px solid rgba(56, 189, 248, 0.65);
   padding-left: 0.5rem;
 }
 
@@ -244,9 +254,10 @@
 }
 
 .bracket-match {
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .bracket-match--pred-ok {
@@ -355,11 +366,11 @@
 }
 
 .alliance-card {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.75rem;
-  background: var(--bg-secondary);
-  transition: border-color 0.12s;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  background: linear-gradient(160deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.75));
+  transition: border-color 0.2s, box-shadow 0.25s;
 }
 
 .alliance-card.alliance-winner {
@@ -382,11 +393,12 @@
 
 .alliance-epa-badge {
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
-  background: rgba(88, 166, 255, 0.12);
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
+  background: var(--accent-soft);
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
 .alliance-teams {

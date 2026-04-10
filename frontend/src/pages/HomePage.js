@@ -291,7 +291,7 @@ function HomePage() {
   return (
     <div className="home-page ds-page-wide">
       <div className="hero-section ds-page-hero">
-        <h1 className="page-title ds-page-hero-title">Predictobics</h1>
+        <h1 className="page-title ds-page-hero-title text-gradient">Predictobics</h1>
         <p className="page-subtitle">Advanced FRC analytics with component EPA, defense-adjusted metrics, and ML-powered predictions</p>
 
         <div className="search-wrapper">

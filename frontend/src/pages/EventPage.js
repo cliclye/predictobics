@@ -380,7 +380,7 @@ function EventPage() {
     <div className="event-page ds-page-wide">
       {event && (
         <div className="event-header">
-          <h1 className="page-title">{event.name}</h1>
+          <h1 className="page-title text-gradient">{event.name}</h1>
           <p className="page-subtitle">
             {[event.city, event.state_prov, event.country].filter(Boolean).join(', ')}
             {event.start_date && ` · ${new Date(event.start_date).toLocaleDateString()}`}

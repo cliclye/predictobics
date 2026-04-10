@@ -177,7 +177,7 @@ export default function WcmpLocksPage() {
       {data && !loading && (
         <>
           <header className="ds-page-hero">
-            <h1 className="ds-page-hero-title">{districtTitle}</h1>
+            <h1 className="page-title ds-page-hero-title text-gradient">{districtTitle}</h1>
           </header>
 
           <section className="ds-section">

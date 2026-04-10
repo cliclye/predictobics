@@ -112,7 +112,7 @@ function TeamPage() {
     <div className="team-page ds-page-wide">
       <div className="team-top-bar">
         <div className="team-identity">
-          <h1 className="team-title">{team.team_number}</h1>
+          <h1 className="team-title text-gradient">{team.team_number}</h1>
           <span className="team-name-text">{team.name || 'Unknown Team'}</span>
         </div>
         <div className="team-meta-row">

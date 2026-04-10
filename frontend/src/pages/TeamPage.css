@@ -17,8 +17,13 @@
 .team-title {
   font-size: 2rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   color: var(--text-primary);
+}
+
+.team-title.text-gradient {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 .team-name-text {
@@ -54,7 +59,7 @@
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .year-label {
@@ -73,26 +78,27 @@
 }
 
 .year-pill {
-  padding: 0.35rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
   color: var(--text-secondary);
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.25s, transform 0.2s var(--ease-spring);
 }
 
 .year-pill:hover {
-  border-color: var(--accent);
+  border-color: var(--border-glow);
   color: var(--text-primary);
 }
 
 .year-pill.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+  background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%);
+  border-color: transparent;
+  color: #0f172a;
+  box-shadow: 0 4px 20px -6px rgba(56, 189, 248, 0.55);
 }
 
 .year-more-select {
@@ -117,11 +123,12 @@
 }
 
 .refresh-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #3fb950;
-  animation: pulse-dot 2s infinite;
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.65);
+  animation: pulse-dot 2s ease-in-out infinite;
 }
 
 @keyframes pulse-dot {
@@ -165,10 +172,13 @@
 /* ── Event Section ── */
 .event-section {
   margin-bottom: 2rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.45), rgba(15, 23, 42, 0.88));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .event-info-bar {
@@ -199,13 +209,15 @@
 }
 
 .event-week-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--accent);
-  background: rgba(59, 130, 246, 0.12);
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
+  background: var(--accent-soft);
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
 .event-record {
@@ -251,9 +263,9 @@
 /* ── Match Table ── */
 .match-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(15, 23, 42, 0.5);
 }
 
 .match-table {
@@ -285,7 +297,7 @@
 }
 
 .match-table tbody tr:hover {
-  background: rgba(59, 130, 246, 0.04);
+  background: var(--accent-soft);
 }
 
 .match-table tbody tr.unplayed {
