@@ -12,7 +12,7 @@ Score breakdown parsing:
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,7 +128,8 @@ async def ingest_event_matches(event_key: str):
 
             match_time = None
             if m.get("time"):
-                match_time = datetime.fromtimestamp(m["time"])
+                # TBA Unix time is UTC; store naive UTC so API serialization matches JS Date (with Z).
+                match_time = datetime.fromtimestamp(m["time"], tz=timezone.utc).replace(tzinfo=None)
 
             red_auto = _extract_auto(red_bd)
             blue_auto = _extract_auto(blue_bd)

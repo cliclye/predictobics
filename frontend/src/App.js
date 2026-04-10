@@ -6,6 +6,7 @@ import EventPage from './pages/EventPage';
 import PredictPage from './pages/PredictPage';
 import LocksPage from './pages/LocksPage';
 import WcmpLocksPage from './pages/WcmpLocksPage';
+import ComparePage from './pages/ComparePage';
 import './App.css';
 import './design-system.css';
 
@@ -26,6 +27,13 @@ function App() {
             Predict
           </Link>
           <Link
+            to="/compare"
+            className={location.pathname === '/compare' ? 'active' : ''}
+            title="Dual-team EPA, defense-adjusted metrics, and overlaid season trajectories"
+          >
+            Compare
+          </Link>
+          <Link
             to="/locks"
             className={location.pathname === '/locks' || location.pathname === '/locks/wcmp' ? 'active' : ''}
             title="District Championship (DCMP) and separate FIRST Championship (WCMP) estimates"
@@ -40,6 +48,7 @@ function App() {
           <Route path="/team/:teamKey" element={<TeamPage />} />
           <Route path="/event/:eventKey" element={<EventPage />} />
           <Route path="/predict" element={<PredictPage />} />
+          <Route path="/compare" element={<ComparePage />} />
           <Route path="/locks/wcmp" element={<WcmpLocksPage />} />
           <Route path="/locks" element={<LocksPage />} />
         </Routes>

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TeamResponse(BaseModel):
@@ -111,6 +111,19 @@ class MatchResponse(BaseModel):
     red_predicted_score: Optional[float] = None
     blue_predicted_score: Optional[float] = None
     red_win_prob: Optional[float] = None
+    # Per-team EPA totals used for this match's prediction (event metrics or best prior for season)
+    red_epa_by_team: dict[str, float] = Field(default_factory=dict)
+    blue_epa_by_team: dict[str, float] = Field(default_factory=dict)
+
+    @field_serializer("time")
+    def _serialize_match_time_utc(self, value: Optional[datetime], _info):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            v = value.replace(tzinfo=timezone.utc)
+        else:
+            v = value.astimezone(timezone.utc)
+        return v.isoformat().replace("+00:00", "Z")
 
 
 class TeamSeasonBundleResponse(BaseModel):

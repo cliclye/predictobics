@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
+import { formatMatchScheduleLocal } from '../matchTime';
 import TeamSeasonCharts from '../components/TeamSeasonCharts';
 import './TeamPage.css';
 
@@ -19,6 +20,8 @@ function predSnapshot(m) {
     red_win_prob: m.red_win_prob,
     red_predicted_score: m.red_predicted_score,
     blue_predicted_score: m.blue_predicted_score,
+    red_epa_by_team: m.red_epa_by_team,
+    blue_epa_by_team: m.blue_epa_by_team,
   };
 }
 
@@ -27,6 +30,27 @@ function predSnapshot(m) {
  * Finished matches: freeze the first snapshot we have (before or right after the match) so %/preds
  * don't drift when the tab stays open; still shows full preds on first page load.
  */
+/** Per-robot EPA from API, or legacy fallback (alliance pred ÷ 3). */
+function formatPerTeamEpa(match, teamKey, side) {
+  const map = side === 'red' ? match.red_epa_by_team : match.blue_epa_by_team;
+  const obj = map && typeof map === 'object' ? map : {};
+  const v = obj[teamKey];
+  if (v != null && Number.isFinite(Number(v))) return Number(v).toFixed(1);
+  const pred = side === 'red' ? match.red_predicted_score : match.blue_predicted_score;
+  if (pred != null) return (pred / 3).toFixed(1);
+  return '?';
+}
+
+function allianceEpaSumIfComplete(match, side) {
+  const map = side === 'red' ? match.red_epa_by_team : match.blue_epa_by_team;
+  const obj = map && typeof map === 'object' ? map : {};
+  const tks = side === 'red' ? match.red_teams : match.blue_teams;
+  const keys = (tks || []).filter(Boolean);
+  if (!keys.length) return null;
+  if (!keys.every((tk) => obj[tk] != null && Number.isFinite(Number(obj[tk])))) return null;
+  return keys.reduce((s, tk) => s + Number(obj[tk]), 0);
+}
+
 function applyStableMatchPredictions(matchesByEvent, stableRef) {
   const out = {};
   for (const [ek, list] of Object.entries(matchesByEvent)) {
@@ -45,6 +69,8 @@ function applyStableMatchPredictions(matchesByEvent, stableRef) {
           red_win_prob: prev.red_win_prob,
           red_predicted_score: prev.red_predicted_score,
           blue_predicted_score: prev.blue_predicted_score,
+          red_epa_by_team: prev.red_epa_by_team ?? m.red_epa_by_team,
+          blue_epa_by_team: prev.blue_epa_by_team ?? m.blue_epa_by_team,
         };
       }
       if (snap) {
@@ -328,12 +354,10 @@ function MatchRow({ match, teamKey }) {
     actualResult = 'T';
   }
 
-  const timeStr = match.time
-    ? new Date(match.time).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
-    : null;
+  const timeStr = formatMatchScheduleLocal(match.time);
 
-  const redPredPerTeam = match.red_predicted_score !== null ? (match.red_predicted_score / 3) : null;
-  const bluePredPerTeam = match.blue_predicted_score !== null ? (match.blue_predicted_score / 3) : null;
+  const redEpaSum = allianceEpaSumIfComplete(match, 'red');
+  const blueEpaSum = allianceEpaSumIfComplete(match, 'blue');
 
   const predCorrect = played && match.winning_alliance && match.red_win_prob !== null
     ? ((match.red_win_prob >= 0.5 && match.winning_alliance === 'red') ||
@@ -407,21 +431,29 @@ function MatchRow({ match, teamKey }) {
                 <div className="explain-alliance red-explain">
                   <span className="explain-label">Red Alliance EPA</span>
                   <span className="explain-breakdown">
-                    {match.red_teams.map(tk => {
-                      const perTeam = redPredPerTeam !== null ? redPredPerTeam.toFixed(1) : '?';
-                      return <span key={tk} className="explain-team-epa">{tk.replace('frc', '')}: {perTeam}</span>;
-                    })}
-                    <span className="explain-total">= {match.red_predicted_score ?? '?'}</span>
+                    {match.red_teams.map(tk => (
+                      <span key={tk} className="explain-team-epa">
+                        {tk.replace('frc', '')}: {formatPerTeamEpa(match, tk, 'red')}
+                      </span>
+                    ))}
+                    <span className="explain-total">
+                      {redEpaSum != null ? `Σ ${redEpaSum.toFixed(1)} · ` : ''}
+                      pred. {match.red_predicted_score ?? '?'}
+                    </span>
                   </span>
                 </div>
                 <div className="explain-alliance blue-explain">
                   <span className="explain-label">Blue Alliance EPA</span>
                   <span className="explain-breakdown">
-                    {match.blue_teams.map(tk => {
-                      const perTeam = bluePredPerTeam !== null ? bluePredPerTeam.toFixed(1) : '?';
-                      return <span key={tk} className="explain-team-epa">{tk.replace('frc', '')}: {perTeam}</span>;
-                    })}
-                    <span className="explain-total">= {match.blue_predicted_score ?? '?'}</span>
+                    {match.blue_teams.map(tk => (
+                      <span key={tk} className="explain-team-epa">
+                        {tk.replace('frc', '')}: {formatPerTeamEpa(match, tk, 'blue')}
+                      </span>
+                    ))}
+                    <span className="explain-total">
+                      {blueEpaSum != null ? `Σ ${blueEpaSum.toFixed(1)} · ` : ''}
+                      pred. {match.blue_predicted_score ?? '?'}
+                    </span>
                   </span>
                 </div>
               </div>

@@ -499,6 +499,22 @@ async def get_rankings(event_key: str, db: AsyncSession = Depends(get_db)):
 COMP_LEVEL_ORDER = {"qm": 0, "ef": 1, "qf": 2, "sf": 3, "f": 4}
 
 
+def _epa_totals_for_alliance(
+    team_keys: list[str],
+    metrics_by_key: dict[str, Optional[TeamEventMetrics]],
+) -> dict[str, float]:
+    """Map team_key → stored EPA total for UI breakdown (not alliance mean)."""
+    out: dict[str, float] = {}
+    for tk in team_keys:
+        if not tk:
+            continue
+        row = metrics_by_key.get(tk)
+        if row is None or row.epa_total is None:
+            continue
+        out[tk] = round(float(row.epa_total), 1)
+    return out
+
+
 async def _match_responses_by_event(
     db: AsyncSession,
     event_keys: list[str],
@@ -601,6 +617,8 @@ async def _match_responses_by_event(
                 red_predicted_score=red_pred,
                 blue_predicted_score=blue_pred,
                 red_win_prob=red_win_prob,
+                red_epa_by_team=_epa_totals_for_alliance(red_teams, red_m),
+                blue_epa_by_team=_epa_totals_for_alliance(blue_teams, blue_m),
             ))
 
         results.sort(

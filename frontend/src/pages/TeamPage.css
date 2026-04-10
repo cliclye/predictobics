@@ -319,6 +319,10 @@
 }
 
 /* Alliance team cells */
+.col-scores {
+  min-width: 7.75rem;
+}
+
 .col-team {
   min-width: 48px;
   font-weight: 600;
