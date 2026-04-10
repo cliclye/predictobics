@@ -137,7 +137,7 @@
 }
 
 .ds-data-table tbody tr {
-  transition: background 0.15s var(--ease-out);
+  transition: background var(--duration-smooth) var(--ease-smooth);
 }
 
 .ds-data-table tbody tr:hover {

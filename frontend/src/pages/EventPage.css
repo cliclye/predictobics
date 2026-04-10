@@ -29,7 +29,10 @@
   font-weight: 700;
   cursor: pointer;
   border-radius: 999px;
-  transition: color 0.2s var(--ease-out), background 0.2s, box-shadow 0.25s;
+  transition:
+    color var(--duration-smooth) var(--ease-smooth),
+    background var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth);
 }
 
 .event-tab:hover {
@@ -150,7 +153,7 @@
   font-weight: 700;
   font-size: 1rem;
   text-decoration: none;
-  transition: background 0.12s;
+  transition: background var(--duration-smooth) var(--ease-smooth);
 }
 
 .winner-team-badge:hover {
@@ -257,7 +260,9 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth);
 }
 
 .bracket-match--pred-ok {
@@ -370,7 +375,9 @@
   border-radius: var(--radius);
   padding: 0.85rem;
   background: linear-gradient(160deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.75));
-  transition: border-color 0.2s, box-shadow 0.25s;
+  transition:
+    border-color var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth);
 }
 
 .alliance-card.alliance-winner {

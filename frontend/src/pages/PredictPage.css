@@ -36,7 +36,10 @@
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: border-color 0.3s var(--ease-out), box-shadow 0.35s, transform 0.3s var(--ease-spring);
+  transition:
+    border-color var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth),
+    transform var(--duration-smooth) var(--ease-spring);
 }
 
 .alliance-box h3 {
@@ -149,13 +152,13 @@
 
 .prob-red {
   background: linear-gradient(180deg, #fb7185, #ef4444);
-  transition: width 0.55s var(--ease-out);
+  transition: width var(--duration-slower) var(--ease-smooth);
   box-shadow: 0 0 16px rgba(248, 113, 113, 0.35);
 }
 
 .prob-blue {
   background: linear-gradient(180deg, #7dd3fc, var(--accent));
-  transition: width 0.55s var(--ease-out);
+  transition: width var(--duration-slower) var(--ease-smooth);
   box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
 }
 
@@ -210,7 +213,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--duration-smooth) var(--ease-smooth);
 }
 
 .team-ac-item:not(:last-child) {

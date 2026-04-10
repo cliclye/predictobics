@@ -42,6 +42,11 @@
   --glass-blur: blur(20px);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Smooth UI motion (honored by prefers-reduced-motion overrides below) */
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-smooth: 0.45s;
+  --duration-snappy: 0.28s;
+  --duration-slower: 0.65s;
 }
 
 @keyframes mesh-drift {
@@ -56,7 +61,7 @@
 @keyframes fade-rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
@@ -118,11 +123,22 @@ body::after {
 a {
   color: var(--accent);
   text-decoration: none;
-  transition: color 0.2s var(--ease-out), opacity 0.2s;
 }
 
 a:hover {
   color: var(--accent-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button,
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    transition-property: color, background, background-color, background-position, border-color, box-shadow, opacity, transform, filter, text-shadow;
+    transition-duration: var(--duration-smooth);
+    transition-timing-function: var(--ease-smooth);
+  }
 }
 
 ::selection {

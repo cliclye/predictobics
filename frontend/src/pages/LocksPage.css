@@ -23,7 +23,10 @@
   background: var(--accent-soft);
   border: 1px solid rgba(56, 189, 248, 0.2);
   display: inline-block;
-  transition: background 0.2s, box-shadow 0.25s, transform 0.2s var(--ease-spring);
+  transition:
+    background var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth),
+    transform var(--duration-smooth) var(--ease-spring);
 }
 
 .locks-pnw-predict-link a:hover {
@@ -54,7 +57,9 @@
   border: 1px solid var(--border-strong);
   background: rgba(15, 23, 42, 0.75);
   color: var(--text-primary);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth);
 }
 
 .locks-controls select:focus {

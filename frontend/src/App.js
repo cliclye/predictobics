@@ -16,7 +16,6 @@ function App() {
     <div className="app">
       <nav className="navbar">
         <Link to="/" className="nav-brand">
-          <span className="brand-icon">◆</span>
           Predictobics
         </Link>
         <div className="nav-links">
@@ -35,7 +34,7 @@ function App() {
           </Link>
         </div>
       </nav>
-      <main className="main-content">
+      <main key={location.pathname} className="main-content">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/team/:teamKey" element={<TeamPage />} />

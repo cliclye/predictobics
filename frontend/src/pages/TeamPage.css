@@ -86,7 +86,11 @@
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, box-shadow 0.25s, transform 0.2s var(--ease-spring);
+  transition:
+    border-color var(--duration-smooth) var(--ease-smooth),
+    color var(--duration-smooth) var(--ease-smooth),
+    box-shadow var(--duration-smooth) var(--ease-smooth),
+    transform var(--duration-smooth) var(--ease-spring);
 }
 
 .year-pill:hover {
@@ -449,7 +453,10 @@
   font-size: 0.6rem;
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
-  transition: all 0.12s;
+  transition:
+    background var(--duration-smooth) var(--ease-smooth),
+    color var(--duration-smooth) var(--ease-smooth),
+    transform var(--duration-smooth) var(--ease-smooth);
   line-height: 1;
 }
 
@@ -595,7 +602,7 @@
   font-weight: 600;
   cursor: pointer;
   text-align: left;
-  transition: color 0.12s;
+  transition: color var(--duration-smooth) var(--ease-smooth);
 }
 
 .algo-toggle:hover {
@@ -604,7 +611,7 @@
 
 .algo-arrow {
   font-size: 0.6rem;
-  transition: transform 0.15s;
+  transition: transform var(--duration-smooth) var(--ease-smooth);
   display: inline-block;
 }
 
