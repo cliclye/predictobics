@@ -24,33 +24,42 @@ export function sortLocksTeams(teams) {
   return [...impact, ...rest];
 }
 
-/** Impact first, then by WCMP lock % (merit-line sim). */
+/**
+ * Sort key for “chance of reaching WCMP”: merit sim probability, or ~certain for Impact qualifiers.
+ * Teams with no usable WCMP % sink to the bottom.
+ */
+function wcmpQualificationSortKey(t) {
+  if (isImpactTeam(t)) return 1;
+  const p = t.wcmp_lock_probability;
+  if (p == null || !Number.isFinite(p)) return -1;
+  return p;
+}
+
+/** Highest → lowest estimated WCMP qualification chance (merit sim; Impact treated as certain). */
 export function sortLocksTeamsByWcmp(teams) {
   if (!teams?.length) return [];
-  const impact = teams.filter(isImpactTeam);
-  const rest = teams.filter((t) => !isImpactTeam(t));
-  impact.sort((a, b) => (b.point_total ?? 0) - (a.point_total ?? 0));
-  rest.sort((a, b) => {
-    const pa = a.wcmp_lock_probability;
-    const pb = b.wcmp_lock_probability;
-    if (pa == null && pb == null) return (b.point_total ?? 0) - (a.point_total ?? 0);
-    if (pa == null) return 1;
-    if (pb == null) return -1;
-    if (pb !== pa) return pb - pa;
+  const copy = [...teams];
+  copy.sort((a, b) => {
+    const ka = wcmpQualificationSortKey(a);
+    const kb = wcmpQualificationSortKey(b);
+    const byChance = kb - ka;
+    if (byChance !== 0) return byChance;
+    const ra = a.rank ?? 1e9;
+    const rb = b.rank ?? 1e9;
+    if (ra !== rb) return ra - rb;
     return (b.point_total ?? 0) - (a.point_total ?? 0);
   });
-  return [...impact, ...rest];
+  return copy;
 }
 
 /**
- * WCMP table: green band = official district rank within WCMP slot count (not “top 50 by lock %” like DCMP page).
+ * WCMP table: green band = first N rows after WCMP-chance sort (N = district WCMP slot count).
  */
-export function rowClassWcmp(t, wcmpRankCutoff) {
+export function rowClassWcmp(t, wcmpRankCutoff, index) {
   const st = isImpactTeam(t) ? 'impact' : (t.wcmp_status || 'out');
-  const r = t.rank;
   const k = wcmpRankCutoff != null && Number(wcmpRankCutoff) > 0 ? Number(wcmpRankCutoff) : null;
-  const inAllocationBand = k != null && r != null && r <= k;
-  if (inAllocationBand) {
+  const inTopSlots = k != null && index != null && index < k;
+  if (inTopSlots) {
     const parts = ['lock-row', 'locks-row-top50'];
     if (st === 'impact') parts.push('impact-row');
     return parts.join(' ');

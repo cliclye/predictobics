@@ -84,9 +84,9 @@ export default function WcmpLocksPage() {
       <div className="locks-hero">
         <h1 className="page-title">WCMP locks</h1>
         <p className="page-subtitle">
-          FIRST Championship (WCMP) focus: total district allocation from published FIRST guidance, plus a
-          merit-line lock % (district points simulation). DCMP % is shown for context. Same data as District
-          Locks, sorted for WCMP.
+          Teams are ordered by estimated WCMP qualification chance (merit-path simulation; Impact Award
+          winners count as a direct qualifier). DCMP lock % is for context. Allocation totals come from
+          published FIRST guidance.
         </p>
         <p className="locks-pnw-predict-link">
           <Link to="/locks">District locks (DCMP + WCMP)</Link>
@@ -214,7 +214,7 @@ export default function WcmpLocksPage() {
           </div>
 
           <div className="card">
-            <div className="card-header">Rankings &amp; WCMP lock %</div>
+            <div className="card-header">By WCMP qualification chance</div>
             <div className="locks-legend">
               <span>
                 <span className="lg top50" />
@@ -223,7 +223,7 @@ export default function WcmpLocksPage() {
                 {' '}
                 {data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots ?? '—'}
                 {' '}
-                by district rank (WCMP slot band; Impact in band highlighted)
+                by WCMP chance (after sort; Impact in band highlighted)
               </span>
               <span><span className="lg clinched" /> ≥~97% sim.</span>
               <span><span className="lg in-range" /> In range</span>
@@ -235,7 +235,7 @@ export default function WcmpLocksPage() {
               <table className="locks-table locks-table-wide">
                 <thead>
                   <tr>
-                    <th>Rank</th>
+                    <th title="District points ranking (TBA)">Dist. rank</th>
                     <th>Team</th>
                     <th>Event 1</th>
                     <th>Event 2</th>
@@ -248,7 +248,14 @@ export default function WcmpLocksPage() {
                 </thead>
                 <tbody>
                   {sortedTeams.map((t, index) => (
-                    <tr key={t.team_key} className={rowClassWcmp(t, data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots)}>
+                    <tr
+                      key={t.team_key}
+                      className={rowClassWcmp(
+                        t,
+                        data.wcmp_merit_sim_spots ?? data.wcmp_allocated_slots,
+                        index,
+                      )}
+                    >
                       <td>{t.rank ?? index + 1}</td>
                       <td>
                         <Link to={`/team/${t.team_key}`} className="team-link">
