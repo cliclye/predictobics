@@ -187,7 +187,4 @@ export const api = {
     const suffix = q.toString() ? `?${q}` : '';
     return fetchJSON(`/district_locks/${encodeURIComponent(districtKey)}/${year}${suffix}`);
   },
-  /** TBA District Championship event key (e.g. pnw + year → DCMP for predictions). */
-  getDistrictChampionshipEvent: (districtAbbrev, year) =>
-    fetchJSON(`/district_locks/championship/${encodeURIComponent(districtAbbrev)}/${year}`),
 };

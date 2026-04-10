@@ -6,7 +6,6 @@ import EventPage from './pages/EventPage';
 import PredictPage from './pages/PredictPage';
 import LocksPage from './pages/LocksPage';
 import WcmpLocksPage from './pages/WcmpLocksPage';
-import PnwDcmpPage from './pages/PnwDcmpPage';
 import './App.css';
 import './design-system.css';
 
@@ -29,23 +28,10 @@ function App() {
           </Link>
           <Link
             to="/locks"
-            className={location.pathname === '/locks' ? 'active' : ''}
+            className={location.pathname === '/locks' || location.pathname === '/locks/wcmp' ? 'active' : ''}
             title="District Championship (DCMP) and separate FIRST Championship (WCMP) estimates"
           >
             District locks
-          </Link>
-          <Link
-            to="/locks/wcmp"
-            className={location.pathname === '/locks/wcmp' ? 'active' : ''}
-            title="FIRST Championship (Houston) — not the District Championship"
-          >
-            FIRST Champs
-          </Link>
-          <Link
-            to="/pnw-dcmp"
-            className={location.pathname === '/pnw-dcmp' ? 'active' : ''}
-          >
-            PNW DCMP
           </Link>
         </div>
       </nav>
@@ -57,7 +43,6 @@ function App() {
           <Route path="/predict" element={<PredictPage />} />
           <Route path="/locks/wcmp" element={<WcmpLocksPage />} />
           <Route path="/locks" element={<LocksPage />} />
-          <Route path="/pnw-dcmp" element={<PnwDcmpPage />} />
         </Routes>
       </main>
       <footer className="footer">

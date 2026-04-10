@@ -90,11 +90,6 @@ export default function LocksPage() {
         <p className="locks-pnw-predict-link">
           <Link to="/locks/wcmp">FIRST Championship view (WCMP-focused table)</Link>
         </p>
-        {(districtKey || '').toLowerCase().includes('pnw') && (
-          <p className="locks-pnw-predict-link">
-            <Link to="/pnw-dcmp">PNW District Championship — EPA rankings &amp; playoff predictions</Link>
-          </p>
-        )}
       </div>
 
       <div className="locks-controls card">
