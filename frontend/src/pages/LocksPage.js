@@ -157,7 +157,7 @@ export default function LocksPage() {
                     <span className="locks-subval">
                       reserve {data.wcmp_non_merit_slots_reserved} (
                       {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (
-                        <>{data.wcmp_impact_slots_reserved} Impact</>
+                        <>{data.wcmp_impact_slots_reserved} Impact@DCMP</>
                       )}
                       {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && ', '}
                       {(data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && (
@@ -170,7 +170,7 @@ export default function LocksPage() {
               </div>
               <div className="locks-summary-seghead">District season (shared inputs)</div>
               <div>
-                <span className="lbl">Impact Award teams (district events)</span>
+                <span className="lbl">Impact winners on district week events (eligible at DCMP)</span>
                 <span className="val">{data.impact_award_count}</span>
               </div>
               <div>

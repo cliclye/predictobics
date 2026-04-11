@@ -14,13 +14,14 @@ function statusLabel(s) {
   return map[s] || s;
 }
 
-function isImpactTeam(t) {
-  return t.status === 'impact' || t.lock_display === 'Impact' || t.wcmp_lock_display === 'Impact';
+/** WCMP column: only DCMP Impact winners (from TBA) count as locked Impact; regional finalists use %%. */
+function isWcmpImpactWinner(t) {
+  return t.wcmp_lock_display === 'Impact';
 }
 
 /** FRCLocks-style: % with one decimal, 0%, —, or Impact */
 function formatLocked(t) {
-  if (isImpactTeam(t)) return 'Impact';
+  if (isWcmpImpactWinner(t)) return 'Impact';
   const p = t.wcmp_lock_probability;
   if (p == null || !Number.isFinite(p)) return '—';
   if (p < 1e-9) {
@@ -208,7 +209,10 @@ export default function WcmpLocksPage() {
                       <span className="ds-controls-hint" style={{ display: 'block', marginTop: '0.25rem' }}>
                         Reserved outside merit rank:{' '}
                         {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (
-                          <>{data.wcmp_impact_slots_reserved} for Impact Award winner(s)</>
+                          <>
+                            {data.wcmp_impact_slots_reserved} for Impact Award winners at DCMP (final two;
+                            not one slot per regional Impact finalist — see Impact count {data.impact_award_count ?? 0})
+                          </>
                         )}
                         {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && ', '}
                         {(data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && (

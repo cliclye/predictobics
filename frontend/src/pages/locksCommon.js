@@ -2,12 +2,14 @@ import React from 'react';
 
 export const TOP_GREEN_ROWS = 50;
 
+/** Regional or DCMP Impact styling for DCMP lock column / sorting (district events). */
 export function isImpactTeam(t) {
-  return (
-    t.status === 'impact' ||
-    t.lock_display === 'Impact' ||
-    t.wcmp_lock_display === 'Impact'
-  );
+  return t.status === 'impact' || t.lock_display === 'Impact';
+}
+
+/** FIRST Championship column: only winners of Impact at DCMP (TBA), not regional finalists. */
+export function isWcmpImpactWinner(t) {
+  return t.wcmp_lock_display === 'Impact';
 }
 
 /** Impact teams first (by total points), then everyone else by DCMP lock % (best → worst). */
@@ -33,7 +35,7 @@ export function sortLocksTeams(teams) {
  * Teams with no usable WCMP % sink to the bottom.
  */
 function wcmpQualificationSortKey(t) {
-  if (isImpactTeam(t)) return 1;
+  if (isWcmpImpactWinner(t)) return 1;
   const p = t.wcmp_lock_probability;
   if (p == null || !Number.isFinite(p)) return -1;
   return p;
@@ -60,7 +62,7 @@ export function sortLocksTeamsByWcmp(teams) {
  * WCMP page only: green band from WCMP-chance sort + Houston slot count — not DCMP field size.
  */
 export function rowClassWcmp(t, wcmpRankCutoff, index) {
-  const st = isImpactTeam(t) ? 'impact' : (t.wcmp_status || 'out');
+  const st = isWcmpImpactWinner(t) ? 'impact' : (t.wcmp_status || 'out');
   const k = wcmpRankCutoff != null && Number(wcmpRankCutoff) > 0 ? Number(wcmpRankCutoff) : null;
   const inTopSlots = k != null && index != null && index < k;
   if (inTopSlots) {
