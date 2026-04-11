@@ -75,6 +75,11 @@
   margin-top: 0.75rem;
 }
 
+/* Prevent long WCMP / subval text from forcing the grid wider than the card. */
+.locks-summary-grid > div {
+  min-width: 0;
+}
+
 .locks-summary-seghead {
   grid-column: 1 / -1;
   font-size: 0.72rem;
@@ -105,6 +110,7 @@
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--accent);
+  min-width: 0;
 }
 
 .locks-summary .locks-subval {
@@ -113,6 +119,7 @@
   font-size: 0.72rem;
   font-weight: 500;
   color: var(--text-muted);
+  overflow-wrap: break-word;
 }
 
 .locks-disclaimer {

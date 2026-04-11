@@ -1,3 +1,27 @@
+/* Match main locks page width; KV table uses full content width (design-system caps .ds-kv-table at 520px). */
+.wcmp-locks-page .wcmp-kv-table {
+  max-width: 100%;
+}
+
+.wcmp-locks-page .wcmp-kv-table th {
+  width: min(40%, 13rem);
+  white-space: normal;
+  vertical-align: top;
+}
+
+.wcmp-locks-page .wcmp-kv-table td {
+  vertical-align: top;
+}
+
+.wcmp-merit-reserve-note {
+  margin-top: 0.65rem;
+  max-width: 48rem;
+}
+
+.wcmp-rankings-table {
+  min-width: 760px;
+}
+
 /* WCMP-specific row highlight (shared design-system for tables/layout). */
 .wcmp-row-slot-band {
   background: rgba(46, 160, 67, 0.12) !important;

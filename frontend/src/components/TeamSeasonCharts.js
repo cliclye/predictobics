@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -9,6 +9,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { buildPerMatchChartRows } from '../utils/chartTimelineUtils';
 import './TeamSeasonCharts.css';
 
 function shortEventLabel(name, eventKey) {
@@ -16,7 +17,7 @@ function shortEventLabel(name, eventKey) {
   return raw.length > 24 ? `${raw.slice(0, 22)}…` : raw;
 }
 
-function buildRows(metrics, eventInfos) {
+function buildEventRows(metrics, eventInfos) {
   return metrics.map((m, i) => {
     const info = eventInfos[m.event_key];
     const name = info?.name || m.event_key;
@@ -48,14 +49,20 @@ function seriesHasData(rows, key) {
   return rows.some((r) => r[key] != null);
 }
 
-function ChartTooltip({ active, payload, label }) {
+function ChartTooltip({ active, payload, label, advanced }) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
   return (
     <div className="team-chart-tooltip">
       <div className="team-chart-tooltip-title">{row?.fullLabel || label}</div>
-      {row?.matchesPlayed != null && (
-        <div className="team-chart-tooltip-meta">Qual matches in model: {row.matches_played}</div>
+      {advanced ? (
+        <div className="team-chart-tooltip-meta">
+          Total EPA snapshot used for this match&apos;s prediction (updates as the model ingests more quals).
+        </div>
+      ) : (
+        row?.matchesPlayed != null && (
+          <div className="team-chart-tooltip-meta">Qual matches in model: {row.matchesPlayed}</div>
+        )
       )}
       <ul className="team-chart-tooltip-rows">
         {payload
@@ -76,26 +83,47 @@ function ChartTooltip({ active, payload, label }) {
 
 /**
  * Season-over-event EPA & quality charts (data from /team/{key}/season metrics, event order = season timeline).
+ * Advanced mode: one point per played match using per-match total EPA from prediction payloads.
  */
-export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
-  const data = useMemo(() => buildRows(metrics || [], eventInfos || {}), [metrics, eventInfos]);
+export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, teamKey, eventMatches }) {
+  const [chartMode, setChartMode] = useState('basic');
+
+  const eventData = useMemo(() => buildEventRows(metrics || [], eventInfos || {}), [metrics, eventInfos]);
+  const matchData = useMemo(
+    () => buildPerMatchChartRows(teamKey, metrics, eventMatches, eventInfos),
+    [teamKey, metrics, eventMatches, eventInfos],
+  );
+
+  const advanced = chartMode === 'advanced';
+  const data = advanced ? matchData : eventData;
 
   const flags = useMemo(
     () => ({
       total: seriesHasData(data, 'epaTotal'),
-      defense: seriesHasData(data, 'epaDefenseAdj'),
-      auto: seriesHasData(data, 'epaAuto'),
-      teleop: seriesHasData(data, 'epaTeleop'),
-      endgame: seriesHasData(data, 'epaEndgame'),
-      cr: seriesHasData(data, 'consistency') || seriesHasData(data, 'reliability'),
-      sos: seriesHasData(data, 'sos'),
+      defense: !advanced && seriesHasData(data, 'epaDefenseAdj'),
+      auto: !advanced && seriesHasData(data, 'epaAuto'),
+      teleop: !advanced && seriesHasData(data, 'epaTeleop'),
+      endgame: !advanced && seriesHasData(data, 'epaEndgame'),
+      cr:
+        !advanced &&
+        (seriesHasData(data, 'consistency') || seriesHasData(data, 'reliability')),
+      sos: !advanced && seriesHasData(data, 'sos'),
     }),
-    [data],
+    [data, advanced],
   );
 
-  const anyEpa = flags.total || flags.defense || flags.auto || flags.teleop || flags.endgame;
+  const anyEpaEvent = useMemo(() => {
+    const rows = buildEventRows(metrics || [], eventInfos || {});
+    return (
+      seriesHasData(rows, 'epaTotal') ||
+      seriesHasData(rows, 'epaDefenseAdj') ||
+      seriesHasData(rows, 'epaAuto') ||
+      seriesHasData(rows, 'epaTeleop') ||
+      seriesHasData(rows, 'epaEndgame')
+    );
+  }, [metrics, eventInfos]);
 
-  if (!metrics?.length || !anyEpa) {
+  if (!metrics?.length || !anyEpaEvent) {
     return (
       <section className="team-season-charts card">
         <h2 className="team-season-charts-title">Season trends</h2>
@@ -108,71 +136,116 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
   }
 
   const xInterval = data.length <= 10 ? 0 : Math.ceil(data.length / 6) - 1;
+  const tiltX = data.length > 6;
+  const tooltipEl = <ChartTooltip advanced={advanced} />;
 
   return (
     <section className="team-season-charts card" aria-label={`EPA season trends for ${seasonYear}`}>
       <div className="team-season-charts-header">
         <h2 className="team-season-charts-title">Season trends</h2>
         <p className="team-season-charts-sub">
-          EPA and model stats after each event in {seasonYear} order (left → right). Defense-adjusted EPA blends
-          offensive EPA with defensive signal from the regression.
+          {advanced ? (
+            <>
+              One point per <strong>played</strong> match (quals and elims), using total EPA from the model snapshot for
+              that match&apos;s prediction. Defense-adjusted, component, and schedule curves stay in Basic (they are stored
+              per event, not per match).
+            </>
+          ) : (
+            <>
+              EPA and model stats after each event in {seasonYear} order (left → right). Defense-adjusted EPA blends
+              offensive EPA with defensive signal from the regression.
+            </>
+          )}
         </p>
-      </div>
-
-      <div className="team-chart-block">
-        <h3 className="team-chart-block-title">Total &amp; defense-adjusted EPA</h3>
-        <div className="team-chart-surface">
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
-                interval={xInterval}
-                angle={data.length > 6 ? -32 : 0}
-                textAnchor={data.length > 6 ? 'end' : 'middle'}
-                height={data.length > 6 ? 72 : 36}
-              />
-              <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
-                width={44}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(v) => <span className="team-chart-legend-text">{v}</span>} />
-              {flags.total && (
-                <Line
-                  type="monotone"
-                  dataKey="epaTotal"
-                  name="Total EPA"
-                  stroke="#38bdf8"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, strokeWidth: 0, fill: '#38bdf8' }}
-                  activeDot={{ r: 5 }}
-                  connectNulls
-                />
-              )}
-              {flags.defense && (
-                <Line
-                  type="monotone"
-                  dataKey="epaDefenseAdj"
-                  name="Defense-adj. EPA"
-                  stroke="#a78bfa"
-                  strokeWidth={2}
-                  dot={{ r: 3, strokeWidth: 0, fill: '#a78bfa' }}
-                  activeDot={{ r: 5 }}
-                  connectNulls
-                />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="team-chart-mode-row" role="group" aria-label="Chart granularity">
+          <span className="team-chart-mode-label">View</span>
+          <div className="team-chart-mode-btns">
+            <button
+              type="button"
+              className={`team-chart-mode-btn ${!advanced ? 'active' : ''}`}
+              onClick={() => setChartMode('basic')}
+            >
+              Basic
+            </button>
+            <button
+              type="button"
+              className={`team-chart-mode-btn ${advanced ? 'active' : ''}`}
+              onClick={() => setChartMode('advanced')}
+            >
+              Advanced
+            </button>
+          </div>
         </div>
       </div>
 
-      {(flags.auto || flags.teleop || flags.endgame) && (
+      {advanced && matchData.length === 0 && (
+        <p className="team-chart-advanced-empty">
+          No per-match EPA points found on finished matches (needs prediction fields on match rows). Use Basic for
+          event-level charts.
+        </p>
+      )}
+
+      <div className="team-chart-block">
+        <h3 className="team-chart-block-title">Total EPA{advanced ? ' (per match)' : ''}</h3>
+        <div className="team-chart-surface">
+          {advanced && matchData.length === 0 ? (
+            <p className="team-chart-surface-empty">No match-level series to plot.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  interval={xInterval}
+                  angle={tiltX ? -32 : 0}
+                  textAnchor={tiltX ? 'end' : 'middle'}
+                  height={tiltX ? 72 : 36}
+                />
+                <YAxis
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  width={44}
+                />
+                <Tooltip content={tooltipEl} />
+                <Legend
+                  wrapperStyle={{ paddingTop: 12 }}
+                  formatter={(v) => <span className="team-chart-legend-text">{v}</span>}
+                />
+                {flags.total && (
+                  <Line
+                    type="monotone"
+                    dataKey="epaTotal"
+                    name="Total EPA"
+                    stroke="#38bdf8"
+                    strokeWidth={2.5}
+                    dot={{ r: advanced ? 3.5 : 3, strokeWidth: 0, fill: '#38bdf8' }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                )}
+                {flags.defense && (
+                  <Line
+                    type="monotone"
+                    dataKey="epaDefenseAdj"
+                    name="Defense-adj. EPA"
+                    stroke="#a78bfa"
+                    strokeWidth={2}
+                    dot={{ r: 3, strokeWidth: 0, fill: '#a78bfa' }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {!advanced && (flags.auto || flags.teleop || flags.endgame) && (
         <div className="team-chart-block">
           <h3 className="team-chart-block-title">Component EPA (auto · teleop · endgame)</h3>
           <div className="team-chart-surface">
@@ -185,9 +258,9 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
                   tickLine={false}
                   axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
                   interval={xInterval}
-                  angle={data.length > 6 ? -32 : 0}
-                  textAnchor={data.length > 6 ? 'end' : 'middle'}
-                  height={data.length > 6 ? 72 : 36}
+                  angle={tiltX ? -32 : 0}
+                  textAnchor={tiltX ? 'end' : 'middle'}
+                  height={tiltX ? 72 : 36}
                 />
                 <YAxis
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -195,8 +268,11 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
                   axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
                   width={44}
                 />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(v) => <span className="team-chart-legend-text">{v}</span>} />
+                <Tooltip content={tooltipEl} />
+                <Legend
+                  wrapperStyle={{ paddingTop: 12 }}
+                  formatter={(v) => <span className="team-chart-legend-text">{v}</span>}
+                />
                 {flags.auto && (
                   <Line
                     type="monotone"
@@ -236,10 +312,12 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
         </div>
       )}
 
-      {(flags.cr || flags.sos) && (
+      {!advanced && (flags.cr || flags.sos) && (
         <div className="team-chart-block">
           <h3 className="team-chart-block-title">Consistency, reliability &amp; strength of schedule</h3>
-          <p className="team-chart-block-hint">Consistency and reliability are 0–1 model weights; SoS is relative event difficulty where available.</p>
+          <p className="team-chart-block-hint">
+            Consistency and reliability are 0–1 model weights; SoS is relative event difficulty where available.
+          </p>
           <div className="team-chart-surface">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
@@ -250,9 +328,9 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
                   tickLine={false}
                   axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
                   interval={xInterval}
-                  angle={data.length > 6 ? -32 : 0}
-                  textAnchor={data.length > 6 ? 'end' : 'middle'}
-                  height={data.length > 6 ? 72 : 36}
+                  angle={tiltX ? -32 : 0}
+                  textAnchor={tiltX ? 'end' : 'middle'}
+                  height={tiltX ? 72 : 36}
                 />
                 <YAxis
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -261,8 +339,11 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear }) {
                   width={44}
                   domain={[0, 'auto']}
                 />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(v) => <span className="team-chart-legend-text">{v}</span>} />
+                <Tooltip content={tooltipEl} />
+                <Legend
+                  wrapperStyle={{ paddingTop: 12 }}
+                  formatter={(v) => <span className="team-chart-legend-text">{v}</span>}
+                />
                 {flags.cr && seriesHasData(data, 'consistency') && (
                   <Line
                     type="monotone"

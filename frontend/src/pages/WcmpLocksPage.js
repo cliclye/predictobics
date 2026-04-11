@@ -145,7 +145,7 @@ export default function WcmpLocksPage() {
   }, [data]);
 
   return (
-    <div className="wcmp-locks-page ds-page">
+    <div className="wcmp-locks-page ds-page-wide">
       <div className="card locks-controls">
         <div className="locks-control-row">
           <label>
@@ -190,8 +190,8 @@ export default function WcmpLocksPage() {
           </header>
 
           <section className="ds-section">
-            <h2 className="ds-section-title">Statistic</h2>
-            <table className="ds-kv-table">
+            <h2 className="ds-section-title">Statistics</h2>
+            <table className="ds-kv-table wcmp-kv-table">
               <tbody>
                 <tr>
                   <th scope="row">Points Remaining in the District</th>
@@ -203,30 +203,28 @@ export default function WcmpLocksPage() {
                 </tr>
                 <tr>
                   <th scope="row">Merit-line rank cutoff (simulation)</th>
-                  <td>
-                    {data.wcmp_merit_line_rank_cutoff ?? data.wcmp_merit_sim_spots ?? '—'}
-                    {(data.wcmp_non_merit_slots_reserved ?? 0) > 0 && (
-                      <span className="ds-controls-hint" style={{ display: 'block', marginTop: '0.25rem' }}>
-                        Reserved outside merit rank:{' '}
-                        {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (
-                          <>
-                            {data.wcmp_impact_slots_reserved} for Impact Award winners at DCMP (final two;
-                            not one slot per regional Impact finalist — see Impact count {data.impact_award_count ?? 0})
-                          </>
-                        )}
-                        {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && ', '}
-                        {(data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && (
-                          <>{data.wcmp_dcmp_winner_slots_reserved} for District Championship winning alliance</>
-                        )}
-                        {' '}
-                        (total reserve {data.wcmp_non_merit_slots_reserved}, capped so merit line ≥ 1; allocation{' '}
-                        {data.wcmp_merit_sim_spots ?? '—'} → merit top {data.wcmp_merit_line_rank_cutoff ?? '—'}).
-                      </span>
-                    )}
-                  </td>
+                  <td>{data.wcmp_merit_line_rank_cutoff ?? data.wcmp_merit_sim_spots ?? '—'}</td>
                 </tr>
               </tbody>
             </table>
+            {(data.wcmp_non_merit_slots_reserved ?? 0) > 0 && (
+              <p className="ds-controls-hint wcmp-merit-reserve-note">
+                Reserved outside merit rank:{' '}
+                {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (
+                  <>
+                    {data.wcmp_impact_slots_reserved} for Impact Award winners at DCMP (final two; not one slot per
+                    regional Impact finalist — Impact count on district weeks {data.impact_award_count ?? 0})
+                  </>
+                )}
+                {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && ', '}
+                {(data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && (
+                  <>{data.wcmp_dcmp_winner_slots_reserved} for District Championship winning alliance</>
+                )}
+                {' '}
+                (total reserve {data.wcmp_non_merit_slots_reserved}, capped so merit line ≥ 1; allocation{' '}
+                {data.wcmp_merit_sim_spots ?? '—'} → merit top {data.wcmp_merit_line_rank_cutoff ?? '—'}).
+              </p>
+            )}
           </section>
 
           <section className="ds-section">
@@ -313,20 +311,6 @@ export default function WcmpLocksPage() {
           </section>
 
           <p className="ds-disclaimer">{data.disclaimer}</p>
-
-          <footer className="ds-page-footer">
-            <p className="ds-page-footer-brand">Predictobics</p>
-            <p className="ds-page-footer-line">
-              Layout inspired by classic district lock tools · Algorithm: Monte Carlo on district points (TBA)
-            </p>
-            <p className="ds-page-footer-line">
-              Data from{' '}
-              <a href="https://www.thebluealliance.com/" target="_blank" rel="noreferrer">The Blue Alliance</a>
-              {' · '}
-              <a href="https://www.firstinspires.org/" target="_blank" rel="noreferrer">FIRST</a>
-              {' '}is a registered trademark of FIRST.
-            </p>
-          </footer>
         </>
       )}
     </div>

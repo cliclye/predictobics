@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -9,6 +9,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { buildComparePerMatchRows } from '../utils/chartTimelineUtils';
 import './CompareCharts.css';
 
 function finiteOrNull(v) {
@@ -65,14 +66,16 @@ export function buildCompareTimeline(metricsA, infosA, metricsB, infosB) {
   return rows;
 }
 
-function CompareTooltip({ active, payload, labelA, labelB }) {
+function CompareTooltip({ active, payload, labelA, labelB, matchMode }) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
   return (
     <div className="compare-chart-tooltip">
       <div className="compare-chart-tooltip-title">{row?.fullLabel}</div>
       <div className="compare-chart-tooltip-meta">
-        {(row?.mpA || 0) > 0 || (row?.mpB || 0) > 0 ? (
+        {matchMode ? (
+          <span>Total EPA snapshot for this match&apos;s prediction (per team when they played).</span>
+        ) : (row?.mpA || 0) > 0 || (row?.mpB || 0) > 0 ? (
           <span>
             Quals in model — {labelA}: {row?.mpA ?? 0} · {labelB}: {row?.mpB ?? 0}
           </span>
@@ -95,19 +98,53 @@ function CompareTooltip({ active, payload, labelA, labelB }) {
   );
 }
 
-export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB }) {
-  const flags = useMemo(
-    () => ({
-      epa: timeline.some((r) => r.epaA != null || r.epaB != null),
-      def: timeline.some((r) => r.defA != null || r.defB != null),
-      comp: timeline.some((r) => r.autoA != null || r.autoB != null),
-      cr: timeline.some((r) => r.consA != null || r.consB != null || r.relA != null || r.relB != null),
-      sos: timeline.some((r) => r.sosA != null || r.sosB != null),
-    }),
-    [timeline],
+export default function CompareCharts({
+  timeline,
+  teamKeyA,
+  teamKeyB,
+  eventMatchesA,
+  eventMatchesB,
+  eventInfosA,
+  eventInfosB,
+  labelA,
+  labelB,
+  colorA,
+  colorB,
+}) {
+  const [chartMode, setChartMode] = useState('basic');
+  const advanced = chartMode === 'advanced';
+
+  const matchTimeline = useMemo(
+    () =>
+      teamKeyA && teamKeyB
+        ? buildComparePerMatchRows(
+            teamKeyA,
+            teamKeyB,
+            eventMatchesA,
+            eventMatchesB,
+            eventInfosA,
+            eventInfosB,
+          )
+        : [],
+    [teamKeyA, teamKeyB, eventMatchesA, eventMatchesB, eventInfosA, eventInfosB],
   );
 
-  if (!timeline.length || !flags.epa) {
+  const activeTimeline = advanced ? matchTimeline : timeline;
+
+  const flags = useMemo(
+    () => ({
+      def: !advanced && timeline.some((r) => r.defA != null || r.defB != null),
+      comp: !advanced && timeline.some((r) => r.autoA != null || r.autoB != null),
+      cr: !advanced && timeline.some((r) => r.consA != null || r.consB != null || r.relA != null || r.relB != null),
+      sos: !advanced && timeline.some((r) => r.sosA != null || r.sosB != null),
+    }),
+    [timeline, advanced],
+  );
+
+  const hasEventEpa = timeline.some((r) => r.epaA != null || r.epaB != null);
+  const hasMatchEpa = matchTimeline.some((r) => r.epaA != null || r.epaB != null);
+
+  if ((!timeline.length && !matchTimeline.length) || (!hasEventEpa && !hasMatchEpa)) {
     return (
       <section className="compare-charts card">
         <h2 className="compare-charts-title">Trajectory overlay</h2>
@@ -116,13 +153,15 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
     );
   }
 
-  const xInterval = timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1;
+  const xInterval =
+    activeTimeline.length <= 8 ? 0 : Math.ceil(activeTimeline.length / 5) - 1;
+  const tiltX = activeTimeline.length > 6;
   const xProps = {
     type: 'category',
     dataKey: 'label',
-    angle: timeline.length > 6 ? -30 : 0,
-    textAnchor: timeline.length > 6 ? 'end' : 'middle',
-    height: timeline.length > 6 ? 72 : 36,
+    angle: tiltX ? -30 : 0,
+    textAnchor: tiltX ? 'end' : 'middle',
+    height: tiltX ? 72 : 36,
     interval: xInterval,
   };
 
@@ -136,64 +175,64 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
     </div>
   );
 
+  const tip = <CompareTooltip labelA={labelA} labelB={labelB} matchMode={advanced} />;
+
   return (
     <section className="compare-charts card" aria-label="Head-to-head EPA trajectories">
       <header className="compare-charts-header">
         <h2 className="compare-charts-title">Trajectory overlay</h2>
         <p className="compare-charts-sub">
-          Events merged and ordered chronologically (TBA start dates when available). Each point is the stored EPA snapshot
-          after that event’s compute — overlay raw offensive estimate against defense-adjusted regression output.
+          {advanced ? (
+            <>
+              Chronological <strong>played</strong> matches involving either team. Each point is that team&apos;s total
+              EPA from the prediction snapshot for that match. Other charts stay on <strong>Basic</strong> (per-event
+              metrics only).
+            </>
+          ) : (
+            <>
+              Events merged and ordered chronologically (TBA start dates when available). Each point is the stored EPA
+              snapshot after that event&apos;s compute — overlay raw offensive estimate against defense-adjusted
+              regression output.
+            </>
+          )}
         </p>
+        <div className="compare-chart-mode-row" role="group" aria-label="Chart granularity">
+          <span className="compare-chart-mode-label">View</span>
+          <div className="compare-chart-mode-btns">
+            <button
+              type="button"
+              className={`compare-chart-mode-btn ${!advanced ? 'active' : ''}`}
+              onClick={() => setChartMode('basic')}
+            >
+              Basic
+            </button>
+            <button
+              type="button"
+              className={`compare-chart-mode-btn ${advanced ? 'active' : ''}`}
+              onClick={() => setChartMode('advanced')}
+            >
+              Advanced
+            </button>
+          </div>
+        </div>
       </header>
 
-      {block(
-        'Total EPA',
-        'Raw regression contribution (WLS); sum across an alliance approximates expected alliance output before variance layers.',
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={timeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
-            <XAxis
-              {...xProps}
-              tick={{ fill: '#94a3b8', fontSize: 11 }}
-              tickLine={false}
-              axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
-            />
-            <YAxis
-              tick={{ fill: '#94a3b8', fontSize: 11 }}
-              tickLine={false}
-              axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
-              width={48}
-            />
-            <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} />} />
-            <Legend wrapperStyle={{ paddingTop: 12 }} formatter={legendFmt} />
-            <Line
-              type="monotone"
-              dataKey="epaA"
-              name={`${labelA} total`}
-              stroke={colorA}
-              strokeWidth={2.5}
-              dot={{ r: 3, strokeWidth: 0, fill: colorA }}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="epaB"
-              name={`${labelB} total`}
-              stroke={colorB}
-              strokeWidth={2.5}
-              dot={{ r: 3, strokeWidth: 0, fill: colorB }}
-              connectNulls
-            />
-          </LineChart>
-        </ResponsiveContainer>,
+      {advanced && matchTimeline.length === 0 && (
+        <p className="compare-chart-advanced-empty">
+          No per-match EPA on finished matches yet. Use Basic for event-level trajectories.
+        </p>
       )}
 
-      {flags.def &&
-        block(
-          'Defense-adjusted EPA',
-          'Offensive EPA blended with opponent-strength and defensive-impact terms from the EPA regression.',
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={timeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+      {block(
+        advanced ? 'Total EPA (per match)' : 'Total EPA',
+        advanced
+          ? null
+          : 'Raw regression contribution (WLS); sum across an alliance approximates expected alliance output before variance layers.',
+        matchTimeline.length === 0 && advanced ? (
+          <p className="compare-chart-surface-empty">No match-level series to plot.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={activeTimeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
               <XAxis
                 {...xProps}
@@ -207,7 +246,56 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
                 width={48}
               />
-              <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} />} />
+              <Tooltip content={tip} />
+              <Legend wrapperStyle={{ paddingTop: 12 }} formatter={legendFmt} />
+              <Line
+                type="monotone"
+                dataKey="epaA"
+                name={`${labelA} total`}
+                stroke={colorA}
+                strokeWidth={2.5}
+                dot={{ r: advanced ? 3.5 : 3, strokeWidth: 0, fill: colorA }}
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="epaB"
+                name={`${labelB} total`}
+                stroke={colorB}
+                strokeWidth={2.5}
+                dot={{ r: advanced ? 3.5 : 3, strokeWidth: 0, fill: colorB }}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ),
+      )}
+
+      {flags.def &&
+        block(
+          'Defense-adjusted EPA',
+          'Offensive EPA blended with opponent-strength and defensive-impact terms from the EPA regression.',
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={timeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
+              <XAxis
+                {...xProps}
+                dataKey="label"
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                interval={timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1}
+                angle={timeline.length > 6 ? -30 : 0}
+                textAnchor={timeline.length > 6 ? 'end' : 'middle'}
+                height={timeline.length > 6 ? 72 : 36}
+              />
+              <YAxis
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                width={48}
+              />
+              <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} matchMode={false} />} />
               <Legend wrapperStyle={{ paddingTop: 12 }} formatter={legendFmt} />
               <Line
                 type="monotone"
@@ -242,9 +330,14 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
               <XAxis
                 {...xProps}
+                dataKey="label"
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                interval={timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1}
+                angle={timeline.length > 6 ? -30 : 0}
+                textAnchor={timeline.length > 6 ? 'end' : 'middle'}
+                height={timeline.length > 6 ? 72 : 36}
               />
               <YAxis
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -252,7 +345,7 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
                 width={48}
               />
-              <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} />} />
+              <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} matchMode={false} />} />
               <Legend wrapperStyle={{ paddingTop: 12 }} formatter={legendFmt} />
               <Line type="monotone" dataKey="autoA" name={`${labelA} auto`} stroke="#fb923c" strokeWidth={1.8} dot={{ r: 2 }} connectNulls />
               <Line type="monotone" dataKey="autoB" name={`${labelB} auto`} stroke="#fdba74" strokeWidth={1.8} dot={{ r: 2 }} connectNulls />
@@ -273,9 +366,14 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
               <XAxis
                 {...xProps}
+                dataKey="label"
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                interval={timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1}
+                angle={timeline.length > 6 ? -30 : 0}
+                textAnchor={timeline.length > 6 ? 'end' : 'middle'}
+                height={timeline.length > 6 ? 72 : 36}
               />
               <YAxis
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -284,7 +382,7 @@ export default function CompareCharts({ timeline, labelA, labelB, colorA, colorB
                 width={48}
                 domain={[0, 'auto']}
               />
-              <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} />} />
+              <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} matchMode={false} />} />
               <Legend wrapperStyle={{ paddingTop: 12 }} formatter={legendFmt} />
               {timeline.some((r) => r.consA != null || r.consB != null) && (
                 <>

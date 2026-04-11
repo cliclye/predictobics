@@ -388,7 +388,19 @@ export default function ComparePage() {
             </div>
           </section>
 
-          <CompareCharts timeline={timeline} labelA={String(numA)} labelB={String(numB)} colorA={COLOR_A} colorB={COLOR_B} />
+          <CompareCharts
+            timeline={timeline}
+            teamKeyA={keyA}
+            teamKeyB={keyB}
+            eventMatchesA={bundleA?.event_matches}
+            eventMatchesB={bundleB?.event_matches}
+            eventInfosA={bundleA?.event_infos}
+            eventInfosB={bundleB?.event_infos}
+            labelA={String(numA)}
+            labelB={String(numB)}
+            colorA={COLOR_A}
+            colorB={COLOR_B}
+          />
         </>
       )}
     </div>

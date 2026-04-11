@@ -184,7 +184,13 @@ function TeamPage() {
       )}
 
       {metrics.length > 0 && (
-        <TeamSeasonCharts metrics={metrics} eventInfos={eventInfos} seasonYear={year} />
+        <TeamSeasonCharts
+          metrics={metrics}
+          eventInfos={eventInfos}
+          seasonYear={year}
+          teamKey={teamKey}
+          eventMatches={eventMatches}
+        />
       )}
 
       {metrics.length > 0 && (
