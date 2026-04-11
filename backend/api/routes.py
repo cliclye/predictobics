@@ -122,9 +122,16 @@ def _run_snake_draft_greedy_epa(
     skip_first_pick: bool,
 ) -> list[list[str]]:
     """
-    FRC-style snake: round 1 order 1..8 or (2025+ skip) 2..8 then 1;
-    round 2 order 8..1. Each pick takes the highest-EPA team left in *pool*
-    (pool must be sorted by EPA descending before calling).
+    Serpentine (snake) draft for eight 3-team alliances (FRC standard):
+
+    - Captains are already fixed (seeds 1–8); *pool* is everyone else, sorted by
+      EPA descending before calling.
+    - Round 1 (picks 1–8): alliance pick order is 1,2,…,8 — unless *skip_first_pick*
+      is True (FIRST 2025+ defer): then 2,3,…,8, then 1.
+    - Round 2 (picks 9–16): order reverses to 8,7,…,1.
+
+    Each pick takes the next team in *pool* (greedy highest EPA), modeling
+    aligned pick lists. Declines, burns, and backup robots are not simulated.
     """
     pool = list(pool_sorted_epa)
     alliances = [[c] for c in captains]
@@ -499,6 +506,31 @@ async def get_rankings(event_key: str, db: AsyncSession = Depends(get_db)):
 COMP_LEVEL_ORDER = {"qm": 0, "ef": 1, "qf": 2, "sf": 3, "f": 4}
 
 
+def _alliance_map_from_rows(alliance_rows: list) -> dict[str, dict[str, list[str]]]:
+    """
+    Build match_key → {red|blue: [frc…, …]} in correct robot order.
+
+    MatchAlliance.position is 0-based. Using ``position or …`` is wrong because 0 is falsy:
+    rows processed out of DB order could overwrite slots and drop a team from the alliance,
+    so the team page would miss a qual match in the filter (includes(team_key)).
+    """
+    rows = sorted(
+        alliance_rows,
+        key=lambda a: (a.match_key, a.alliance, a.position if a.position is not None else 10**9),
+    )
+    alliance_map: dict[str, dict[str, list[str]]] = {}
+    for a in rows:
+        alliance_map.setdefault(a.match_key, {}).setdefault(a.alliance, [])
+        teams = alliance_map[a.match_key][a.alliance]
+        if a.position is not None:
+            while len(teams) <= a.position:
+                teams.append("")
+            teams[a.position] = a.team_key
+        else:
+            teams.append(a.team_key)
+    return alliance_map
+
+
 def _epa_totals_for_alliance(
     team_keys: list[str],
     metrics_by_key: dict[str, Optional[TeamEventMetrics]],
@@ -538,14 +570,7 @@ async def _match_responses_by_event(
         select(MatchAlliance).where(MatchAlliance.match_key.in_(mkeys))
     )
     alliance_rows = alliances_result.scalars().all()
-
-    alliance_map: dict[str, dict[str, list[str]]] = {}
-    for a in alliance_rows:
-        alliance_map.setdefault(a.match_key, {}).setdefault(a.alliance, [])
-        teams = alliance_map[a.match_key][a.alliance]
-        while len(teams) <= (a.position or 0):
-            teams.append("")
-        teams[a.position or len(teams) - 1] = a.team_key
+    alliance_map = _alliance_map_from_rows(list(alliance_rows))
 
     metrics_result = await db.execute(
         select(TeamEventMetrics).where(TeamEventMetrics.event_key.in_(event_keys))
@@ -688,8 +713,8 @@ async def predict_event(
     n: int = Query(280, ge=50, le=5000),
     skip_first_pick: Optional[bool] = Query(
         None,
-        description="Alliance 1 defers first pick to end of round 1 (2025+ rule). "
-        "Default: true for 2025 and later events.",
+        description="If true, alliance 1 picks last in round 1 (FIRST 2025+ defer: order 2→8, then 1). "
+        "Default false: classic snake with round 1 order 1→8 and round 2 order 8→1.",
     ),
     db: AsyncSession = Depends(get_db),
 ):
@@ -703,7 +728,7 @@ async def predict_event(
     ev_row = await db.execute(select(Event).where(Event.key == event_key))
     ev = ev_row.scalar_one_or_none()
     event_year = ev.year if ev else 0
-    apply_skip = skip_first_pick if skip_first_pick is not None else (event_year >= 2025)
+    apply_skip = bool(skip_first_pick)
 
     metrics_result = await db.execute(
         select(TeamEventMetrics, Team)
@@ -750,7 +775,11 @@ async def predict_event(
             return 0.42 * e_n + 0.28 * rp_n + 0.30 * win_pct
         return 0.52 * e_n + 0.48 * rp_n
 
-    ranked = sorted(sim_results.items(), key=lambda x: (_composite(x[0]), x[1]["avg_rp"]), reverse=True)
+    # Qualification order: RP-primary (like FRC rankings), then composite tiebreak.
+    ranked = sorted(
+        sim_results.items(),
+        key=lambda x: (-x[1]["avg_rp"], -_composite(x[0]), x[0]),
+    )
 
     predicted_rankings = []
     for rank, (tk, data) in enumerate(ranked, 1):
@@ -777,7 +806,7 @@ async def predict_event(
             actual_qual_record=actual_qual_record,
         ))
 
-    # Alliance selection: top 8 captains by composite rank; greedy EPA from remaining pool; snake (+ optional skip)
+    # Alliance selection: top 8 by predicted qualification order; greedy EPA from pool; snake (+ optional 2025 defer)
     available = list(ranked)
     captains = [tk for tk, _ in available[:8]]
     remaining = [tk for tk, _ in available[8:]]
@@ -824,19 +853,16 @@ async def predict_event(
     winner_teams = alliances[pred_winner_1based - 1] if pred_winner_1based <= len(alliances) else []
 
     ranking_note = (
-        "Predicted rank blends EPA, simulated RP, and actual qualification W-L-T (when "
-        "enough matches are in the database) so the order is not EPA-only."
+        "Predicted qualification order is primarily by simulated average RP (FRC-style ranking points), "
+        "with ties broken by a blend of EPA, RP, and actual qualification W-L-T when enough matches exist."
     )
     alliance_note = (
-        "Greedy picks (strongest EPA still available). Snake draft: round 1 "
-        + ("2→8, then 1" if apply_skip else "1→8")
-        + ", round 2 8→1. "
-        + (
-            "Alliance 1 may defer first pick to the end of round 1 (2025+ FIRST rule); "
-            "declines are not modeled."
-            if apply_skip
-            else "Pre-2025 order: round 1 is 1→8 with no skip."
-        )
+        "Eight captains are seeds 1–8 from that order. Everyone else is drafted in a serpentine order: "
+        "round 1 picks "
+        + ("2→8, then 1 (2025+ defer)" if apply_skip else "1→8")
+        + ", round 2 picks 8→1. "
+        "Each selection takes the strongest projected EPA still available (ordered pick lists). "
+        "Invitations, declines, burns, and fourth-team backups are not modeled."
     )
 
     return EventPredictionResponse(
