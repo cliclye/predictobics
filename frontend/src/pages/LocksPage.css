@@ -107,6 +107,14 @@
   color: var(--accent);
 }
 
+.locks-summary .locks-subval {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
 .locks-disclaimer {
   margin-top: 1rem;
   font-size: 0.8rem;

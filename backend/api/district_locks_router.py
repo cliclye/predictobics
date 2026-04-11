@@ -23,6 +23,7 @@ from backend.ingestion.tba_client import (
     get_districts_for_year,
     get_event_awards,
     get_event_matches,
+    get_event_teams,
 )
 from backend.metrics.district_locks import (
     abbrev_from_district_key,
@@ -39,9 +40,11 @@ _LOCKS_DISCLAIMER = (
     "DCMP and WCMP are different competitions and different numbers. "
     "DCMP lock %% uses your district’s estimated District Championship field size (who makes the "
     "district championship event). "
-    "WCMP lock %% is separate: it uses the district’s FIRST Championship slot allocation and simulates "
-    "whether you finish high enough in district points for the merit path to Houston — not the same cutoff "
-    "as DCMP, and not P(qualify by Impact, EI, winning DCMP, etc.). "
+    "WCMP merit lock %% uses the district’s FIRST Championship slot count but reserves slots outside "
+    "the district-points merit line: one per Impact Award winner we see on district events, plus "
+    "three for the District Championship winning alliance (auto-qualifiers). "
+    "The sim estimates P(finish in the top *k* by district points for the remaining merit path) — with "
+    "residual uncertainty; it does not predict who wins DCMP or other award paths (EI, RAS, etc.). "
     "Both columns share the same underlying Monte Carlo over remaining district-week points; "
     "uncertainty scales while events are unfinished. Not a guarantee. "
     "Impact Award teams show Impact instead of %%. Verify with official FIRST / district sources."
@@ -259,6 +262,17 @@ async def _district_locks_payload_impl(
                 calendar_incomplete += 1
     uncertainty_mult = calendar_uncertainty_multiplier(calendar_incomplete, calendar_total)
 
+    # Non-merit uses of district WCMP allocation: Impact winners + DCMP winning alliance (3 robots).
+    impact_n = len(impact_teams)
+    has_dcmp_on_calendar = any(e.get("is_district_cmp") for e in events_out)
+    if not has_dcmp_on_calendar:
+        dcmp_chk = await get_district_championship_event(dkey, year)
+        has_dcmp_on_calendar = bool(dcmp_chk and dcmp_chk.get("key"))
+    dcmp_winner_reserve = 3 if has_dcmp_on_calendar else 0
+    max_reserve = max(0, wcmp_sim_cutoff - 1)
+    non_merit_reserve = min(impact_n + dcmp_winner_reserve, max_reserve)
+    wcmp_merit_line_cutoff = max(1, wcmp_sim_cutoff - non_merit_reserve)
+
     lock_rows = estimate_lock_probabilities(
         rankings_raw,
         spots,
@@ -266,6 +280,7 @@ async def _district_locks_payload_impl(
         calendar_events_incomplete=calendar_incomplete,
         calendar_events_total=calendar_total,
         wcmp_merit_spots=wcmp_sim_cutoff,
+        wcmp_non_merit_reserve=non_merit_reserve,
     )
     merged = merge_locks_into_rankings(rankings_raw, lock_rows)
 
@@ -312,12 +327,48 @@ async def _district_locks_payload_impl(
             entry["wcmp_status"] = wst
         teams_out.append(entry)
 
+    # Who "made" DCMP for WCMP-focused UI: TBA championship roster when populated enough,
+    # else estimated field (district rank cutoff). Impact + anyone with DCMP points always count.
+    dcmp_ek_list = [e["event_key"] for e in events_out if e.get("is_district_cmp")]
+    if not dcmp_ek_list:
+        dcmp_meta = await get_district_championship_event(dkey, year)
+        if dcmp_meta and dcmp_meta.get("key"):
+            dcmp_ek_list = [dcmp_meta["key"]]
+
+    roster: set[str] = set()
+    for ek in dcmp_ek_list:
+        for t in await get_event_teams(ek) or []:
+            k = t.get("key")
+            if isinstance(k, str) and k.startswith("frc"):
+                roster.add(k)
+
+    roster_min_trust = max(12, spots // 2) if spots > 0 else 12
+    use_roster_qual = len(roster) >= roster_min_trust
+
+    for entry in teams_out:
+        tk = entry.get("team_key") or ""
+        rnk = int(entry.get("rank") or 99999)
+        impact = entry.get("status") == "impact"
+        dcmp_pts = int(entry.get("dcmp_points") or 0)
+        if use_roster_qual:
+            qual = impact or (tk in roster) or dcmp_pts > 0
+        else:
+            qual = impact or (rnk <= spots) or dcmp_pts > 0
+        entry["dcmp_field_qualifier"] = qual
+
     return {
         "district_key": dkey,
         "year": year,
         "dcmp_spots": spots,
+        "dcmp_field_qualifier_mode": (
+            "tba_dcmp_roster" if use_roster_qual else "estimated_rank_cutoff"
+        ),
         "wcmp_allocated_slots": wcmp_allocated,
         "wcmp_merit_sim_spots": wcmp_sim_cutoff,
+        "wcmp_merit_line_rank_cutoff": wcmp_merit_line_cutoff,
+        "wcmp_impact_slots_reserved": impact_n,
+        "wcmp_dcmp_winner_slots_reserved": dcmp_winner_reserve,
+        "wcmp_non_merit_slots_reserved": non_merit_reserve,
         "impact_award_teams": sorted(impact_teams),
         "impact_award_count": len(impact_teams),
         "estimated_points_remaining_hint": total_pts_available,
@@ -352,6 +403,7 @@ def _slim_teams_for_wcmp_page(teams: list[dict[str, Any]]) -> list[dict[str, Any
                 "wcmp_lock_display": t.get("wcmp_lock_display"),
                 "wcmp_status": t.get("wcmp_status"),
                 "status": t.get("status"),
+                "dcmp_field_qualifier": t.get("dcmp_field_qualifier"),
             }
         )
     return out
@@ -417,8 +469,13 @@ async def all_districts_wcmp_locks(
                     "name": dname,
                     "abbrev": dm.get("abbrev"),
                     "dcmp_spots": full["dcmp_spots"],
+                    "dcmp_field_qualifier_mode": full.get("dcmp_field_qualifier_mode"),
                     "wcmp_allocated_slots": full["wcmp_allocated_slots"],
                     "wcmp_merit_sim_spots": full["wcmp_merit_sim_spots"],
+                    "wcmp_merit_line_rank_cutoff": full.get("wcmp_merit_line_rank_cutoff"),
+                    "wcmp_impact_slots_reserved": full.get("wcmp_impact_slots_reserved"),
+                    "wcmp_dcmp_winner_slots_reserved": full.get("wcmp_dcmp_winner_slots_reserved"),
+                    "wcmp_non_merit_slots_reserved": full.get("wcmp_non_merit_slots_reserved"),
                     "calendar_events_incomplete": full["calendar_events_incomplete"],
                     "calendar_events_total": full["calendar_events_total"],
                     "lock_uncertainty_multiplier": full["lock_uncertainty_multiplier"],

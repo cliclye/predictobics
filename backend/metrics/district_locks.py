@@ -146,6 +146,7 @@ def estimate_lock_probabilities(
     calendar_events_incomplete: int = 0,
     calendar_events_total: int = 0,
     wcmp_merit_spots: Optional[int] = None,
+    wcmp_non_merit_reserve: int = 0,
 ) -> list[dict]:
     """
     Monte Carlo: simulate remaining district qual points with correlated uncertainty
@@ -157,7 +158,13 @@ def estimate_lock_probabilities(
     progress, so lock % reflects unknown outcomes at not-yet-finished events.
 
     When ``wcmp_merit_spots`` is set (rank cutoff, typically the district's FIRST Championship
-    slot count), the same draws also estimate P(finish in the top that many by district points).
+    slot count), a **merit-line** simulation estimates P(finish in the top *k* by district points)
+    where *k* = ``wcmp_merit_spots - wcmp_non_merit_reserve`` (Impact winners, DCMP winning-alliance
+    auto-quals, etc. consume allocation slots outside the district-points merit ranking).
+
+    WCMP uses extra Gaussian noise on final simulated totals before ranking so lock %% stays
+    below 100%% when the point race is mostly finished: teams below the cutoff can still pass on
+    tiebreaks, corrections, and unmodeled paths; the model does not claim deterministic order.
     """
     if not rankings or dcmp_spots < 1:
         return []
@@ -177,12 +184,20 @@ def estimate_lock_probabilities(
 
     probs = np.zeros(n_teams)
     do_wcmp = wcmp_merit_spots is not None and int(wcmp_merit_spots) > 0
-    wk = min(int(wcmp_merit_spots), n_teams) if do_wcmp else 0
+    wk_raw = min(int(wcmp_merit_spots), n_teams) if do_wcmp else 0
+    res = int(max(0, wcmp_non_merit_reserve))
+    wk_merit = max(1, wk_raw - min(res, max(0, wk_raw - 1))) if do_wcmp else 0
     probs_wcmp = np.zeros(n_teams) if do_wcmp else None
 
     # Correlated noise for teams still eligible to earn points: scales with open calendar
     global_std = 5.5 * mult
     lognorm_sigma = min(0.32, 0.18 * mult)
+
+    all_point_slots_done = bool(np.all(slots_left <= 0))
+
+    # WCMP merit ranking gets residual spread so "top N" is never treated as deterministic once
+    # quals are done; strength rises when the whole district has used both plays.
+    wcmp_sigma_base = (6.2 if all_point_slots_done else 4.0) * mult
 
     for _ in range(n_simulations):
         sim = base.copy()
@@ -202,8 +217,13 @@ def estimate_lock_probabilities(
         inv_rank[order] = np.arange(n_teams)
         in_top = inv_rank < dcmp_spots
         probs += in_top.astype(float)
-        if do_wcmp and probs_wcmp is not None and wk > 0:
-            probs_wcmp += (inv_rank < wk).astype(float)
+        if do_wcmp and probs_wcmp is not None and wk_merit > 0:
+            wcmp_j = rng.normal(0.0, wcmp_sigma_base, n_teams)
+            tie_j = rng.random(n_teams) * 1e-5
+            order_w = np.argsort(-(sim + wcmp_j + tie_j))
+            inv_w = np.empty_like(order_w)
+            inv_w[order_w] = np.arange(n_teams)
+            probs_wcmp += (inv_w < wk_merit).astype(float)
 
     probs /= float(n_simulations)
     if do_wcmp and probs_wcmp is not None:

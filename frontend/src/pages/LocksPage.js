@@ -147,12 +147,25 @@ export default function LocksPage() {
                 </span>
               </div>
               <div>
-                <span className="lbl">WCMP sim rank cutoff</span>
+                <span className="lbl">WCMP merit-line rank cutoff (sim)</span>
                 <span
                   className="val"
-                  title="Rank cutoff for WCMP lock % only (defaults to allocation; override via API). Not the DCMP field size."
+                  title="Merit sim: top k by district points after reserving Impact winners (from TBA) plus 3 slots for the DCMP winning alliance. Override via API: wcmp_merit_sim_spots."
                 >
-                  {data.wcmp_merit_sim_spots ?? '—'}
+                  {data.wcmp_merit_line_rank_cutoff ?? data.wcmp_merit_sim_spots ?? '—'}
+                  {(data.wcmp_non_merit_slots_reserved ?? 0) > 0 && (
+                    <span className="locks-subval">
+                      reserve {data.wcmp_non_merit_slots_reserved} (
+                      {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (
+                        <>{data.wcmp_impact_slots_reserved} Impact</>
+                      )}
+                      {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && ', '}
+                      {(data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && (
+                        <>{data.wcmp_dcmp_winner_slots_reserved} DCMP winners</>
+                      )}
+                      ) from allocation {data.wcmp_merit_sim_spots ?? '—'}
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="locks-summary-seghead">District season (shared inputs)</div>

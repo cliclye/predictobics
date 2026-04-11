@@ -104,9 +104,17 @@ export default function WcmpLocksPage() {
     if (districtKey) loadLocks();
   }, [districtKey, year, loadLocks]);
 
-  const rankedTeams = useMemo(() => sortTeamsByDistrictRank(data?.teams), [data?.teams]);
+  const rankedTeams = useMemo(() => {
+    const sorted = sortTeamsByDistrictRank(data?.teams);
+    if (!sorted.length) return [];
+    return sorted.filter(
+      (t) => t.dcmp_field_qualifier !== false,
+    );
+  }, [data?.teams]);
 
-  const wcmpSlots = data?.wcmp_allocated_slots ?? data?.wcmp_merit_sim_spots ?? 0;
+  /** Merit-line rank cutoff used in the WCMP sim (after Impact slot reserve), not raw district allocation. */
+  const wcmpMeritCutoff =
+    data?.wcmp_merit_line_rank_cutoff ?? data?.wcmp_merit_sim_spots ?? data?.wcmp_allocated_slots ?? 0;
 
   const dcmpEventRows = useMemo(() => {
     if (!data) return [];
@@ -189,8 +197,29 @@ export default function WcmpLocksPage() {
                   <td>{data.estimated_points_remaining_hint ?? '—'}</td>
                 </tr>
                 <tr>
-                  <th scope="row">Available World Champs Spots</th>
+                  <th scope="row">Available World Champs Spots (district allocation)</th>
                   <td>{data.wcmp_allocated_slots ?? '—'}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Merit-line rank cutoff (simulation)</th>
+                  <td>
+                    {data.wcmp_merit_line_rank_cutoff ?? data.wcmp_merit_sim_spots ?? '—'}
+                    {(data.wcmp_non_merit_slots_reserved ?? 0) > 0 && (
+                      <span className="ds-controls-hint" style={{ display: 'block', marginTop: '0.25rem' }}>
+                        Reserved outside merit rank:{' '}
+                        {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (
+                          <>{data.wcmp_impact_slots_reserved} for Impact Award winner(s)</>
+                        )}
+                        {(data.wcmp_impact_slots_reserved ?? 0) > 0 && (data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && ', '}
+                        {(data.wcmp_dcmp_winner_slots_reserved ?? 0) > 0 && (
+                          <>{data.wcmp_dcmp_winner_slots_reserved} for District Championship winning alliance</>
+                        )}
+                        {' '}
+                        (total reserve {data.wcmp_non_merit_slots_reserved}, capped so merit line ≥ 1; allocation{' '}
+                        {data.wcmp_merit_sim_spots ?? '—'} → merit top {data.wcmp_merit_line_rank_cutoff ?? '—'}).
+                      </span>
+                    )}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -229,7 +258,12 @@ export default function WcmpLocksPage() {
           </section>
 
           <section className="ds-section">
-            <h2 className="ds-section-title">District Rankings</h2>
+            <h2 className="ds-section-title">District Championship field — WCMP lock</h2>
+            <p className="ds-controls-hint" style={{ marginTop: '-0.35rem', marginBottom: '0.75rem' }}>
+              {data.dcmp_field_qualifier_mode === 'tba_dcmp_roster'
+                ? 'Teams on The Blue Alliance’s District Championship roster (plus Impact qualifiers and anyone with DCMP points).'
+                : `Until the DCMP team list is populated on TBA, showing an estimated field: district rank ≤ ${data.dcmp_spots ?? '—'} (plus Impact and any team with DCMP points).`}
+            </p>
             <div className="ds-table-wrap">
               <table className="ds-data-table ds-zebra wcmp-rankings-table">
                 <thead>
@@ -251,7 +285,7 @@ export default function WcmpLocksPage() {
                       ? t.age_bonus
                       : (t.age_adjustment ?? 0) + (t.rookie_bonus ?? 0);
                     const dcmpP = t.dcmp_points ?? 0;
-                    const inSlotBand = wcmpSlots > 0 && t.rank != null && t.rank <= wcmpSlots;
+                    const inSlotBand = wcmpMeritCutoff > 0 && t.rank != null && t.rank <= wcmpMeritCutoff;
                     return (
                       <tr
                         key={t.team_key}

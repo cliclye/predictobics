@@ -3,7 +3,11 @@ import React from 'react';
 export const TOP_GREEN_ROWS = 50;
 
 export function isImpactTeam(t) {
-  return t.status === 'impact' || t.lock_display === 'Impact';
+  return (
+    t.status === 'impact' ||
+    t.lock_display === 'Impact' ||
+    t.wcmp_lock_display === 'Impact'
+  );
 }
 
 /** Impact teams first (by total points), then everyone else by DCMP lock % (best → worst). */
