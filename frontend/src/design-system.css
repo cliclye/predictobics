@@ -1,9 +1,11 @@
 /**
- * Site-wide data-dense UI — aligned with glass / modern surfaces.
- * Load after App.css so these rules win for matching specificity.
+ * Site-wide data-dense UI primitives.
+ * Loaded after App.css so these rules win for matching specificity.
  */
 
-/* ── Page shells ── */
+/* ═══════════════════════════════════════════════════════════
+   PAGE SHELLS
+   ═══════════════════════════════════════════════════════════ */
 .ds-page {
   max-width: 960px;
   margin: 0 auto;
@@ -22,131 +24,150 @@
   padding-bottom: 2.5rem;
 }
 
-/* ── Sections ── */
+/* ═══════════════════════════════════════════════════════════
+   SECTIONS
+   ═══════════════════════════════════════════════════════════ */
 .ds-section {
-  margin-bottom: 1.85rem;
+  margin-bottom: 2rem;
 }
 
 .ds-section-title {
-  margin: 0 0 0.55rem;
-  font-size: 1rem;
-  font-weight: 800;
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.015em;
 }
 
-/* ── Hero (centered page title) ── */
+/* ═══════════════════════════════════════════════════════════
+   HERO
+   ═══════════════════════════════════════════════════════════ */
 .ds-page-hero {
-  margin: 0 0 1.35rem;
+  margin: 0 0 1.75rem;
   text-align: center;
 }
 
 .ds-page-hero-title {
   margin: 0;
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  font-size: clamp(1.7rem, 4vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
-}
-
-.ds-page-hero-title.text-gradient {
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  line-height: 1.15;
 }
 
 .ds-page-hero .page-subtitle {
-  margin-top: 0.55rem;
+  margin-top: 0.65rem;
   margin-bottom: 0;
-  max-width: 42rem;
+  max-width: 46rem;
   margin-left: auto;
   margin-right: auto;
+  font-size: 1rem;
+  color: var(--text-secondary);
 }
 
-/* ── Statistic / key–value table ── */
+.ds-page-hero.ds-page-hero--left {
+  text-align: left;
+}
+
+.ds-page-hero.ds-page-hero--left .page-subtitle {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KEY–VALUE TABLE
+   ═══════════════════════════════════════════════════════════ */
 .ds-kv-table {
   width: 100%;
   max-width: 520px;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   border-radius: var(--radius);
   overflow: hidden;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
 }
 
 .ds-kv-table th,
 .ds-kv-table td {
-  padding: 0.4rem 0.75rem;
+  padding: 0.55rem 0.85rem;
   text-align: left;
-  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ds-kv-table tr:last-child th,
+.ds-kv-table tr:last-child td {
+  border-bottom: none;
 }
 
 .ds-kv-table th {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-secondary);
-  background: rgba(15, 23, 42, 0.85);
-  width: 58%;
+  background: var(--bg-secondary);
+  width: 48%;
 }
 
 .ds-kv-table td {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--text-primary);
-  background: rgba(17, 24, 39, 0.4);
+  background: var(--bg-card);
 }
 
-/* ── Dense bordered data tables ── */
+/* ═══════════════════════════════════════════════════════════
+   DATA TABLES
+   ═══════════════════════════════════════════════════════════ */
 .ds-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(165deg, rgba(30, 41, 59, 0.35), rgba(15, 23, 42, 0.75));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
 }
 
 .ds-data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .ds-data-table th,
 .ds-data-table td {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
 .ds-data-table thead th {
-  font-weight: 800;
-  font-size: 0.76rem;
+  font-weight: 600;
+  font-size: 0.8rem;
   text-transform: none;
   letter-spacing: 0;
   color: var(--text-secondary);
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
 }
 
-.ds-data-table tbody tr:nth-child(even) {
-  background: rgba(56, 189, 248, 0.03);
+.ds-data-table tbody tr {
+  transition: background-color var(--duration-snappy) var(--ease-smooth);
 }
 
 .ds-data-table.ds-zebra tbody tr:nth-child(even) {
-  background: rgba(56, 189, 248, 0.04);
-}
-
-.ds-data-table tbody tr {
-  transition: background var(--duration-smooth) var(--ease-smooth);
+  background: rgba(148, 163, 184, 0.025);
 }
 
 .ds-data-table tbody tr:hover {
-  background: var(--accent-soft);
+  background: var(--bg-subtle);
+}
+
+.ds-data-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .ds-data-table a {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -163,65 +184,58 @@
 .ds-mono,
 .ds-mono a {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
-/* ── Controls strip (inside .card) ── */
+/* ═══════════════════════════════════════════════════════════
+   CONTROLS / HINTS
+   ═══════════════════════════════════════════════════════════ */
 .ds-controls-hint {
   margin: 0.85rem 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
-.ds-controls-hint a {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/* ── Disclaimers / footnotes ── */
-.ds-disclaimer {
-  margin: 1.35rem 0 1rem;
-  font-size: 0.76rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
-/* ── Optional page-local footer (WCMP-style) ── */
-.ds-page-footer {
-  margin-top: 2.25rem;
-  padding-top: 1.35rem;
-  border-top: 1px solid var(--border-strong);
-  text-align: center;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
   line-height: 1.55;
 }
 
+.ds-controls-hint a {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.ds-disclaimer {
+  margin: 1.5rem 0 1rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PAGE-LOCAL FOOTER
+   ═══════════════════════════════════════════════════════════ */
+.ds-page-footer {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 .ds-page-footer-brand {
-  margin: 0 0 0.4rem;
-  font-size: 0.95rem;
-  font-weight: 800;
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--text-secondary);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
 .ds-page-footer-line {
-  margin: 0.28rem 0;
+  margin: 0.3rem 0;
 }
 
 .ds-page-footer a {
   color: var(--accent);
-  font-weight: 600;
-}
-
-/* Left-aligned hero (e.g. form pages) */
-.ds-page-hero.ds-page-hero--left {
-  text-align: left;
-}
-
-.ds-page-hero.ds-page-hero--left .page-subtitle {
-  margin-left: 0;
-  margin-right: 0;
+  font-weight: 500;
 }

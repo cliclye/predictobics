@@ -31,34 +31,34 @@
 }
 
 .team-chart-mode-label {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
 .team-chart-mode-btns {
   display: inline-flex;
-  gap: 0.2rem;
-  padding: 0.2rem;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.65);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
   border: 1px solid var(--border-strong);
 }
 
 .team-chart-mode-btn {
-  padding: 0.35rem 0.85rem;
+  padding: 0.4rem 0.9rem;
   border: none;
-  border-radius: 999px;
-  font-size: 0.78rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
   color: var(--text-secondary);
   background: transparent;
   transition:
-    background var(--duration-smooth) var(--ease-smooth),
-    color var(--duration-smooth) var(--ease-smooth);
+    background-color var(--duration-snappy) var(--ease-smooth),
+    color var(--duration-snappy) var(--ease-smooth);
 }
 
 .team-chart-mode-btn:hover {
@@ -68,8 +68,7 @@
 
 .team-chart-mode-btn.active {
   color: var(--text-primary);
-  background: linear-gradient(135deg, var(--accent-soft-strong), var(--violet-soft));
-  box-shadow: 0 0 16px -6px rgba(56, 189, 248, 0.4);
+  background: var(--accent-soft-strong);
 }
 
 .team-chart-advanced-empty {
@@ -112,9 +111,9 @@
 
 .team-chart-block-hint {
   margin: 0 0 0.65rem;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  line-height: 1.45;
+  line-height: 1.55;
 }
 
 .team-chart-surface {
@@ -129,30 +128,30 @@
 
 .team-chart-legend-text {
   color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .team-chart-tooltip {
-  background: linear-gradient(165deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  padding: 0.65rem 0.85rem;
-  box-shadow: var(--shadow-md);
+  padding: 0.7rem 0.9rem;
+  box-shadow: var(--shadow-lg);
   min-width: 180px;
   max-width: 320px;
 }
 
 .team-chart-tooltip-title {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   color: var(--text-primary);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
   line-height: 1.35;
 }
 
 .team-chart-tooltip-meta {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   margin-bottom: 0.45rem;
 }

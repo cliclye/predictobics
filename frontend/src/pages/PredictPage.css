@@ -12,12 +12,12 @@
 
 .field-label {
   display: block;
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: 0.8rem;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 0.45rem;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
 }
 
 .alliances-row {
@@ -29,29 +29,24 @@
 
 .alliance-box {
   flex: 1;
-  padding: 1.2rem 1.3rem;
+  padding: 1.15rem 1.25rem;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-strong);
-  background: linear-gradient(160deg, rgba(30, 41, 59, 0.45), rgba(15, 23, 42, 0.85));
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
   transition:
-    border-color var(--duration-smooth) var(--ease-smooth),
-    box-shadow var(--duration-smooth) var(--ease-smooth),
-    transform var(--duration-smooth) var(--ease-spring);
+    border-color var(--duration-snappy) var(--ease-smooth);
 }
 
 .alliance-box h3 {
-  font-size: 0.88rem;
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 700;
   margin-bottom: 0.85rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
 .red-box {
-  border-color: rgba(248, 113, 113, 0.28);
-  box-shadow: var(--shadow-sm), 0 0 40px -18px rgba(248, 113, 113, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border-color: rgba(248, 113, 113, 0.3);
 }
 
 .red-box h3 {
@@ -60,25 +55,10 @@
 
 .blue-box {
   border-color: rgba(56, 189, 248, 0.3);
-  box-shadow: var(--shadow-sm), 0 0 40px -18px rgba(56, 189, 248, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .blue-box h3 {
   color: var(--accent);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .alliance-box:hover {
-    transform: translateY(-2px);
-  }
-
-  .red-box:hover {
-    box-shadow: var(--shadow-md), 0 0 48px -12px rgba(248, 113, 113, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
-
-  .blue-box:hover {
-    box-shadow: var(--shadow-md), 0 0 48px -12px rgba(56, 189, 248, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
 }
 
 .alliance-input {
@@ -87,19 +67,14 @@
 }
 
 .vs-divider {
-  font-weight: 900;
-  font-size: 0.95rem;
+  font-weight: 800;
+  font-size: 1rem;
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  padding: 0 0.25rem;
-  letter-spacing: 0.12em;
-  background: linear-gradient(90deg, var(--red), var(--text-muted), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.25));
+  padding: 0 0.35rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
 }
 
 .predict-btn {
@@ -127,12 +102,10 @@
 
 .red-winner {
   color: var(--red);
-  text-shadow: 0 0 24px rgba(248, 113, 113, 0.35);
 }
 
 .blue-winner {
   color: var(--accent);
-  text-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
 }
 
 .prob-bar-container {
@@ -144,22 +117,21 @@
 .prob-bar {
   flex: 1;
   display: flex;
-  height: 30px;
-  border-radius: 999px;
+  height: 28px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
 }
 
 .prob-red {
   background: linear-gradient(180deg, #fb7185, #ef4444);
   transition: width var(--duration-slower) var(--ease-smooth);
-  box-shadow: 0 0 16px rgba(248, 113, 113, 0.35);
 }
 
 .prob-blue {
   background: linear-gradient(180deg, #7dd3fc, var(--accent));
   transition: width var(--duration-slower) var(--ease-smooth);
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
 }
 
 .prob-label {
@@ -190,13 +162,11 @@
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.99));
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-md), var(--shadow-glow);
-  max-height: 220px;
+  box-shadow: var(--shadow-lg);
+  max-height: 240px;
   overflow-y: auto;
   z-index: 200;
 }
@@ -222,18 +192,18 @@
 
 .team-ac-item:hover,
 .team-ac-item.highlighted {
-  background: var(--accent-soft);
+  background: var(--bg-hover);
 }
 
 .team-ac-num {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--accent);
-  min-width: 42px;
-  font-size: 0.85rem;
+  min-width: 46px;
+  font-size: 0.9rem;
 }
 
 .team-ac-name {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;

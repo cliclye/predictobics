@@ -31,34 +31,34 @@
 }
 
 .compare-chart-mode-label {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
 .compare-chart-mode-btns {
   display: inline-flex;
-  gap: 0.2rem;
-  padding: 0.2rem;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.65);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
   border: 1px solid var(--border-strong);
 }
 
 .compare-chart-mode-btn {
-  padding: 0.35rem 0.85rem;
+  padding: 0.4rem 0.9rem;
   border: none;
-  border-radius: 999px;
-  font-size: 0.78rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
   color: var(--text-secondary);
   background: transparent;
   transition:
-    background var(--duration-smooth) var(--ease-smooth),
-    color var(--duration-smooth) var(--ease-smooth);
+    background-color var(--duration-snappy) var(--ease-smooth),
+    color var(--duration-snappy) var(--ease-smooth);
 }
 
 .compare-chart-mode-btn:hover {
@@ -68,8 +68,7 @@
 
 .compare-chart-mode-btn.active {
   color: var(--text-primary);
-  background: linear-gradient(135deg, var(--accent-soft-strong), var(--violet-soft));
-  box-shadow: 0 0 16px -6px rgba(56, 189, 248, 0.4);
+  background: var(--accent-soft-strong);
 }
 
 .compare-chart-advanced-empty {
@@ -111,10 +110,10 @@
 }
 
 .compare-chart-block-hint {
-  margin: 0 0 0.55rem;
-  font-size: 0.76rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  line-height: 1.45;
+  line-height: 1.55;
 }
 
 .compare-chart-surface {
@@ -124,32 +123,32 @@
 
 .compare-legend-text {
   color: var(--text-secondary);
-  font-size: 0.74rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .compare-chart-tooltip {
-  background: linear-gradient(165deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.99));
+  background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  padding: 0.65rem 0.85rem;
-  box-shadow: var(--shadow-md);
+  padding: 0.7rem 0.9rem;
+  box-shadow: var(--shadow-lg);
   max-width: 300px;
 }
 
 .compare-chart-tooltip-title {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   color: var(--text-primary);
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.35rem;
   line-height: 1.35;
 }
 
 .compare-chart-tooltip-meta {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
-  margin-bottom: 0.4rem;
-  line-height: 1.4;
+  margin-bottom: 0.45rem;
+  line-height: 1.45;
 }
 
 .compare-chart-tooltip-rows {
@@ -162,8 +161,8 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.76rem;
-  margin-top: 0.22rem;
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
   color: var(--text-secondary);
 }
 

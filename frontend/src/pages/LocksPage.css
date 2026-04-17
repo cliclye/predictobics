@@ -17,21 +17,19 @@
 
 .locks-pnw-predict-link a {
   color: var(--accent);
-  font-weight: 700;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
+  font-weight: 600;
+  padding: 0.4rem 0.95rem;
+  border-radius: 8px;
   background: var(--accent-soft);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   display: inline-block;
   transition:
-    background var(--duration-smooth) var(--ease-smooth),
-    box-shadow var(--duration-smooth) var(--ease-smooth),
-    transform var(--duration-smooth) var(--ease-spring);
+    background-color var(--duration-snappy) var(--ease-smooth),
+    border-color var(--duration-snappy) var(--ease-smooth);
 }
 
 .locks-pnw-predict-link a:hover {
   background: var(--accent-soft-strong);
-  box-shadow: 0 0 24px -8px rgba(56, 189, 248, 0.45);
   color: var(--accent-hover);
 }
 
@@ -45,21 +43,22 @@
 .locks-controls label {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.8rem;
+  gap: 0.4rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
 }
 
 .locks-controls select {
   min-width: 220px;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius);
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
   border: 1px solid var(--border-strong);
-  background: rgba(15, 23, 42, 0.75);
+  background: var(--bg-secondary);
   color: var(--text-primary);
+  font-size: 0.9rem;
   transition:
-    border-color var(--duration-smooth) var(--ease-smooth),
-    box-shadow var(--duration-smooth) var(--ease-smooth);
+    border-color var(--duration-snappy) var(--ease-smooth),
+    box-shadow var(--duration-snappy) var(--ease-smooth);
 }
 
 .locks-controls select:focus {
@@ -82,7 +81,7 @@
 
 .locks-summary-seghead {
   grid-column: 1 / -1;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -100,23 +99,25 @@
 
 .locks-summary .lbl {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .locks-summary .val {
-  font-size: 1.35rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--accent);
   min-width: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .locks-summary .locks-subval {
   display: block;
-  margin-top: 0.2rem;
-  font-size: 0.72rem;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-muted);
   overflow-wrap: break-word;
@@ -124,15 +125,16 @@
 
 .locks-disclaimer {
   margin-top: 1rem;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.55;
 }
 
 .ev-key {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .ev-status-completed {
@@ -151,8 +153,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  padding: 0.75rem 0 1rem;
-  font-size: 0.8rem;
+  padding: 0.85rem 0 1rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
 }
 
@@ -219,6 +221,7 @@
 .impact-lock-label {
   color: var(--accent);
   font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .lock-dash {
@@ -236,12 +239,14 @@
 }
 
 .impact-tag {
-  padding: 0.25rem 0.5rem;
+  padding: 0.3rem 0.6rem;
   background: var(--bg-hover);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--accent);
   text-decoration: none;
+  font-weight: 500;
 }
 
 .impact-tag:hover {
