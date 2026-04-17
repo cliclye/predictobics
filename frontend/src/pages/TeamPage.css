@@ -102,7 +102,7 @@
 .year-pill.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0a0f1a;
+  color: var(--btn-primary-fg);
 }
 
 .year-more-select {

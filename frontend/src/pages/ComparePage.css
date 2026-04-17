@@ -392,13 +392,13 @@
 .compare-td-a {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #7dd3fc;
+  color: var(--accent);
 }
 
 .compare-td-b {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #c4b5fd;
+  color: var(--accent-2);
 }
 
 .compare-td-d {

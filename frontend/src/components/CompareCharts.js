@@ -10,6 +10,8 @@ import {
   Legend,
 } from 'recharts';
 import { buildComparePerMatchRows } from '../utils/chartTimelineUtils';
+import { useTheme } from '../context/ThemeContext';
+import { useThemeCssVar } from '../hooks/useThemeCssVar';
 import './CompareCharts.css';
 
 function finiteOrNull(v) {
@@ -112,6 +114,13 @@ export default function CompareCharts({
   colorB,
 }) {
   const [chartMode, setChartMode] = useState('basic');
+  const { theme } = useTheme();
+  const tickFill = useThemeCssVar('--text-muted', '#64748b');
+  const tickSecondary = useThemeCssVar('--text-secondary', '#94a3b8');
+  const sosStrokeA = useThemeCssVar('--accent', '#22d3ee');
+  const sosStrokeB = useThemeCssVar('--accent-hover', '#67e8f9');
+  const gridStroke = theme === 'light' ? 'rgba(15, 23, 42, 0.06)' : 'rgba(148, 163, 184, 0.1)';
+  const axisStroke = theme === 'light' ? 'rgba(15, 23, 42, 0.12)' : 'rgba(148, 163, 184, 0.2)';
   const advanced = chartMode === 'advanced';
 
   const matchTimeline = useMemo(
@@ -233,17 +242,17 @@ export default function CompareCharts({
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={activeTimeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
               <XAxis
                 {...xProps}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 width={48}
               />
               <Tooltip content={tip} />
@@ -277,22 +286,22 @@ export default function CompareCharts({
           'Offensive EPA blended with opponent-strength and defensive-impact terms from the EPA regression.',
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={timeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
               <XAxis
                 {...xProps}
                 dataKey="label"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 interval={timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1}
                 angle={timeline.length > 6 ? -30 : 0}
                 textAnchor={timeline.length > 6 ? 'end' : 'middle'}
                 height={timeline.length > 6 ? 72 : 36}
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 width={48}
               />
               <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} matchMode={false} />} />
@@ -327,22 +336,22 @@ export default function CompareCharts({
           'Decomposition from the same WLS fit — reveals where each robot earns its marginal points.',
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={timeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
               <XAxis
                 {...xProps}
                 dataKey="label"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 interval={timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1}
                 angle={timeline.length > 6 ? -30 : 0}
                 textAnchor={timeline.length > 6 ? 'end' : 'middle'}
                 height={timeline.length > 6 ? 72 : 36}
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 width={48}
               />
               <Tooltip content={<CompareTooltip labelA={labelA} labelB={labelB} matchMode={false} />} />
@@ -363,22 +372,22 @@ export default function CompareCharts({
           'Consistency / reliability shape Gaussian variance in match predictions; strength of schedule contextualizes EPA level.',
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={timeline} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.1)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
               <XAxis
                 {...xProps}
                 dataKey="label"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 interval={timeline.length <= 8 ? 0 : Math.ceil(timeline.length / 5) - 1}
                 angle={timeline.length > 6 ? -30 : 0}
                 textAnchor={timeline.length > 6 ? 'end' : 'middle'}
                 height={timeline.length > 6 ? 72 : 36}
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: tickFill, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                axisLine={{ stroke: axisStroke }}
                 width={48}
                 domain={[0, 'auto']}
               />
@@ -386,8 +395,8 @@ export default function CompareCharts({
               <Legend wrapperStyle={{ paddingTop: 12 }} formatter={legendFmt} />
               {timeline.some((r) => r.consA != null || r.consB != null) && (
                 <>
-                  <Line type="monotone" dataKey="consA" name={`${labelA} consistency`} stroke="#94a3b8" strokeWidth={2} dot={{ r: 2 }} connectNulls />
-                  <Line type="monotone" dataKey="consB" name={`${labelB} consistency`} stroke="#cbd5e1" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  <Line type="monotone" dataKey="consA" name={`${labelA} consistency`} stroke={tickFill} strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  <Line type="monotone" dataKey="consB" name={`${labelB} consistency`} stroke={tickSecondary} strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </>
               )}
               {timeline.some((r) => r.relA != null || r.relB != null) && (
@@ -398,8 +407,8 @@ export default function CompareCharts({
               )}
               {flags.sos && (
                 <>
-                  <Line type="monotone" dataKey="sosA" name={`${labelA} SoS`} stroke="#22d3ee" strokeWidth={2} dot={{ r: 2 }} connectNulls />
-                  <Line type="monotone" dataKey="sosB" name={`${labelB} SoS`} stroke="#67e8f9" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  <Line type="monotone" dataKey="sosA" name={`${labelA} SoS`} stroke={sosStrokeA} strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  <Line type="monotone" dataKey="sosB" name={`${labelB} SoS`} stroke={sosStrokeB} strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </>
               )}
             </LineChart>

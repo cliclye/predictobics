@@ -10,6 +10,8 @@ import {
   Legend,
 } from 'recharts';
 import { buildPerMatchChartRows } from '../utils/chartTimelineUtils';
+import { useTheme } from '../context/ThemeContext';
+import { useThemeCssVar } from '../hooks/useThemeCssVar';
 import './TeamSeasonCharts.css';
 
 function shortEventLabel(name, eventKey) {
@@ -87,6 +89,14 @@ function ChartTooltip({ active, payload, label, advanced }) {
  */
 export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, teamKey, eventMatches }) {
   const [chartMode, setChartMode] = useState('basic');
+  const { theme } = useTheme();
+  const tickFill = useThemeCssVar('--text-muted', '#64748b');
+  const strokeTotal = useThemeCssVar('--accent', '#22d3ee');
+  const strokeDefAdj = useThemeCssVar('--accent-2', '#c084fc');
+  const sosStroke = useThemeCssVar('--accent', '#22d3ee');
+  const strokeSecondary = useThemeCssVar('--text-secondary', '#64748b');
+  const gridStroke = theme === 'light' ? 'rgba(15, 23, 42, 0.06)' : 'rgba(148, 163, 184, 0.1)';
+  const axisStroke = theme === 'light' ? 'rgba(15, 23, 42, 0.12)' : 'rgba(148, 163, 184, 0.2)';
 
   const eventData = useMemo(() => buildEventRows(metrics || [], eventInfos || {}), [metrics, eventInfos]);
   const matchData = useMemo(
@@ -193,21 +203,21 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: tickFill, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  axisLine={{ stroke: axisStroke }}
                   interval={xInterval}
                   angle={tiltX ? -32 : 0}
                   textAnchor={tiltX ? 'end' : 'middle'}
                   height={tiltX ? 72 : 36}
                 />
                 <YAxis
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: tickFill, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  axisLine={{ stroke: axisStroke }}
                   width={44}
                 />
                 <Tooltip content={tooltipEl} />
@@ -220,9 +230,9 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
                     type="monotone"
                     dataKey="epaTotal"
                     name="Total EPA"
-                    stroke="#38bdf8"
+                    stroke={strokeTotal}
                     strokeWidth={2.5}
-                    dot={{ r: advanced ? 3.5 : 3, strokeWidth: 0, fill: '#38bdf8' }}
+                    dot={{ r: advanced ? 3.5 : 3, strokeWidth: 0, fill: strokeTotal }}
                     activeDot={{ r: 5 }}
                     connectNulls
                   />
@@ -232,9 +242,9 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
                     type="monotone"
                     dataKey="epaDefenseAdj"
                     name="Defense-adj. EPA"
-                    stroke="#a78bfa"
+                    stroke={strokeDefAdj}
                     strokeWidth={2}
-                    dot={{ r: 3, strokeWidth: 0, fill: '#a78bfa' }}
+                    dot={{ r: 3, strokeWidth: 0, fill: strokeDefAdj }}
                     activeDot={{ r: 5 }}
                     connectNulls
                   />
@@ -251,21 +261,21 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
           <div className="team-chart-surface">
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: tickFill, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  axisLine={{ stroke: axisStroke }}
                   interval={xInterval}
                   angle={tiltX ? -32 : 0}
                   textAnchor={tiltX ? 'end' : 'middle'}
                   height={tiltX ? 72 : 36}
                 />
                 <YAxis
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: tickFill, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  axisLine={{ stroke: axisStroke }}
                   width={44}
                 />
                 <Tooltip content={tooltipEl} />
@@ -321,21 +331,21 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
           <div className="team-chart-surface">
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: tickFill, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  axisLine={{ stroke: axisStroke }}
                   interval={xInterval}
                   angle={tiltX ? -32 : 0}
                   textAnchor={tiltX ? 'end' : 'middle'}
                   height={tiltX ? 72 : 36}
                 />
                 <YAxis
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: tickFill, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  axisLine={{ stroke: axisStroke }}
                   width={44}
                   domain={[0, 'auto']}
                 />
@@ -349,7 +359,7 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
                     type="monotone"
                     dataKey="consistency"
                     name="Consistency"
-                    stroke="#94a3b8"
+                    stroke={tickFill}
                     strokeWidth={2}
                     dot={{ r: 2.5, strokeWidth: 0 }}
                     connectNulls
@@ -360,7 +370,7 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
                     type="monotone"
                     dataKey="reliability"
                     name="Reliability"
-                    stroke="#64748b"
+                    stroke={strokeSecondary}
                     strokeWidth={2}
                     dot={{ r: 2.5, strokeWidth: 0 }}
                     connectNulls
@@ -371,7 +381,7 @@ export default function TeamSeasonCharts({ metrics, eventInfos, seasonYear, team
                     type="monotone"
                     dataKey="sos"
                     name="Strength of schedule"
-                    stroke="#22d3ee"
+                    stroke={sosStroke}
                     strokeWidth={2}
                     dot={{ r: 2.5, strokeWidth: 0 }}
                     connectNulls

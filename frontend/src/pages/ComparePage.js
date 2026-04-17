@@ -2,10 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import CompareCharts, { buildCompareTimeline } from '../components/CompareCharts';
+import { useThemeCssVar } from '../hooks/useThemeCssVar';
 import './ComparePage.css';
-
-const COLOR_A = '#38bdf8';
-const COLOR_B = '#a78bfa';
 
 function finite(v) {
   return v != null && Number.isFinite(Number(v));
@@ -150,6 +148,8 @@ function TeamSearchCombo({ label, value, displayNum, onSelect, placeholder, acce
 }
 
 export default function ComparePage() {
+  const colorA = useThemeCssVar('--accent', '#22d3ee');
+  const colorB = useThemeCssVar('--accent-2', '#c084fc');
   const [year, setYear] = useState(new Date().getFullYear());
   const [keyA, setKeyA] = useState(null);
   const [keyB, setKeyB] = useState(null);
@@ -248,7 +248,7 @@ export default function ComparePage() {
             label="Robot A"
             value={keyA}
             displayNum={numA}
-            accent={COLOR_A}
+            accent={colorA}
             onSelect={(k, n) => {
               setKeyA(k);
               setNumA(n);
@@ -259,7 +259,7 @@ export default function ComparePage() {
             label="Robot B"
             value={keyB}
             displayNum={numB}
-            accent={COLOR_B}
+            accent={colorB}
             onSelect={(k, n) => {
               setKeyB(k);
               setNumB(n);
@@ -290,8 +290,8 @@ export default function ComparePage() {
       {bundleA && bundleB && !loading && (
         <>
           <section className="compare-dual-head card">
-            <div className="compare-head-col" style={{ borderColor: `${COLOR_A}44` }}>
-              <div className="compare-head-badge" style={{ background: `${COLOR_A}22`, color: COLOR_A }}>
+            <div className="compare-head-col" style={{ borderColor: `${colorA}44` }}>
+              <div className="compare-head-badge" style={{ background: `${colorA}22`, color: colorA }}>
                 {la}
               </div>
               <h2 className="compare-head-title">{numA}</h2>
@@ -301,8 +301,8 @@ export default function ComparePage() {
               </p>
             </div>
             <div className="compare-head-vs">vs</div>
-            <div className="compare-head-col" style={{ borderColor: `${COLOR_B}44` }}>
-              <div className="compare-head-badge" style={{ background: `${COLOR_B}22`, color: COLOR_B }}>
+            <div className="compare-head-col" style={{ borderColor: `${colorB}44` }}>
+              <div className="compare-head-badge" style={{ background: `${colorB}22`, color: colorB }}>
                 {lb}
               </div>
               <h2 className="compare-head-title">{numB}</h2>
@@ -317,27 +317,27 @@ export default function ComparePage() {
             <div className="compare-kpi card">
               <div className="compare-kpi-label">Latest total EPA</div>
               <div className="compare-kpi-values">
-                <span style={{ color: COLOR_A }}>{fmt(latestA?.epa_total, 1)}</span>
+                <span style={{ color: colorA }}>{fmt(latestA?.epa_total, 1)}</span>
                 <span className="compare-kpi-sep">|</span>
-                <span style={{ color: COLOR_B }}>{fmt(latestB?.epa_total, 1)}</span>
+                <span style={{ color: colorB }}>{fmt(latestB?.epa_total, 1)}</span>
               </div>
               <div className="compare-kpi-delta">Δ {fmtDelta(latestA?.epa_total, latestB?.epa_total)}</div>
             </div>
             <div className="compare-kpi card">
               <div className="compare-kpi-label">Latest defense-adj. EPA</div>
               <div className="compare-kpi-values">
-                <span style={{ color: COLOR_A }}>{fmt(latestA?.epa_defense_adjusted, 1)}</span>
+                <span style={{ color: colorA }}>{fmt(latestA?.epa_defense_adjusted, 1)}</span>
                 <span className="compare-kpi-sep">|</span>
-                <span style={{ color: COLOR_B }}>{fmt(latestB?.epa_defense_adjusted, 1)}</span>
+                <span style={{ color: colorB }}>{fmt(latestB?.epa_defense_adjusted, 1)}</span>
               </div>
               <div className="compare-kpi-delta">Δ {fmtDelta(latestA?.epa_defense_adjusted, latestB?.epa_defense_adjusted)}</div>
             </div>
             <div className="compare-kpi card">
               <div className="compare-kpi-label">Season mean total EPA</div>
               <div className="compare-kpi-values">
-                <span style={{ color: COLOR_A }}>{fmt(statsA.avgEpa, 1)}</span>
+                <span style={{ color: colorA }}>{fmt(statsA.avgEpa, 1)}</span>
                 <span className="compare-kpi-sep">|</span>
-                <span style={{ color: COLOR_B }}>{fmt(statsB.avgEpa, 1)}</span>
+                <span style={{ color: colorB }}>{fmt(statsB.avgEpa, 1)}</span>
               </div>
               <div className="compare-kpi-delta">Δ {fmtDelta(statsA.avgEpa, statsB.avgEpa)}</div>
             </div>
@@ -398,8 +398,8 @@ export default function ComparePage() {
             eventInfosB={bundleB?.event_infos}
             labelA={String(numA)}
             labelB={String(numB)}
-            colorA={COLOR_A}
-            colorB={COLOR_B}
+            colorA={colorA}
+            colorB={colorB}
           />
         </>
       )}
